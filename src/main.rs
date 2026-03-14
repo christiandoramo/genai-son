@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::window::CursorGrabMode;
 
+mod physics;
 mod camera;
 mod player;
 mod world;
@@ -11,16 +12,20 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "PROTÓTIPO 11: O Planeta Otimizado".into(),
+                title: "PROTÓTIPO 12: Controle Perfeito e Iluminação".into(),
                 resolution: bevy::window::WindowResolution::new(1024.0, 768.0),
                 ..default()
             }),
             ..default()
         }))
-        .add_plugins(FrameTimeDiagnosticsPlugin) // O Leitor de FPS
+        .add_plugins(FrameTimeDiagnosticsPlugin)
         .insert_resource(ClearColor(Color::srgb(0.4, 0.7, 0.9))) 
+        // A SOLUÇÃO DA ESCURIDÃO: Ilumina o lado oculto do planeta!
+        .insert_resource(AmbientLight {
+            color: Color::WHITE,
+            brightness: 150.0, 
+        })
         .init_resource::<world::VoxelWorld>()
-        // A luz agora é instanciada dentro de gerar_mundo
         .add_systems(Startup, (world::gerar_mundo, player::spawn_player, hud::setup_hud))
         .add_systems(Update, (
             gerenciar_cursor,
