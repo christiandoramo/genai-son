@@ -1,0 +1,19 @@
+[package]
+name = "genai_son"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# O núcleo da Engine (Performance absurda e ECS)
+bevy = { version = "0.14", features = ["dynamic_linking"] }
+
+#será usado no futuro para dar vida em músicas procedurais na metarealidade
+# kira = "0.9"
+
+# Matemática, Ruído e Geração de Universos
+noise = "0.9" # Para gerar montanhas e biomas
+
+[profile.dev]
+opt-level = 1
+[profile.dev.package."*"]
+opt-level = 3
