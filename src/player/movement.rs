@@ -74,9 +74,7 @@ pub fn rotacionar_camera(
     mut mouse_motion_events: EventReader<MouseMotion>,
     mut query: Query<(&mut Transform, &mut Player)>,
 ) {
-    let Ok((mut transform, mut player)) = query.get_single_mut() else {
-        return;
-    };
+    let Ok((mut transform, mut player)) = query.get_single_mut() else { return; };
     let mut mouse_dx = 0.0;
     let mut mouse_dy = 0.0;
 
@@ -86,25 +84,10 @@ pub fn rotacionar_camera(
     }
 
     player.pitch = (player.pitch + mouse_dy).clamp(-1.5, 1.5);
-
-    // if player.god_mode {
-    //     // CORREÇÃO BEVY 0.14: Usa Dir3::Y no lugar de Vec3::Y
-    //     transform.rotate_axis(Dir3::Y, mouse_dx);
-    // } else {
-    //     transform.rotate_local_y(mouse_dx);
-    // }
-
-    if player.god_mode {
-        // Usa o vetor 'up' LOCAL do próprio jogador, e não o do universo.
-        let up_local = *transform.up();
-        if let Ok(dir_up) = Dir3::new(up_local) {
-            transform.rotate_axis(dir_up, mouse_dx);
-        }
-    } else {
-        transform.rotate_local_y(mouse_dx);
-    }
+    // Como o corpo já está alinhado ao planeta (tanto no God Mode quanto Sobrevivência), 
+    // um simples rotate_local_y resolve tudo sem bugar os eixos!
+    transform.rotate_local_y(mouse_dx); 
 }
-
 pub fn movimento_sobrevivencia(
     input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,

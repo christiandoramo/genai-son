@@ -1872,6 +1872,7 @@ name = "genai_son"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "futures-lite",
  "noise",
  "sysinfo",
 ]

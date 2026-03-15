@@ -35,7 +35,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.4, 0.7, 0.9)))
         .insert_resource(AmbientLight {
             color: Color::WHITE,
-            brightness: 200.0,
+            brightness: 100.0,
         })
         .add_systems(Update, gerenciar_cursor)
         .run();

@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 # O núcleo da Engine (Performance absurda e ECS)
 bevy = { version = "0.14", features = ["dynamic_linking"] }
+futures-lite = "2.6.1"
 
 #será usado no futuro para dar vida em músicas procedurais na metarealidade
 # kira = "0.9"

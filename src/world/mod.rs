@@ -1,5 +1,6 @@
 // src/world/mod.rs
 use bevy::prelude::*;
+use bevy::tasks::Task;
 use bevy::utils::{HashMap, HashSet};
 
 mod generator;
@@ -22,6 +23,8 @@ pub struct ChunkManager {
     pub chunks_gerados: HashSet<IVec3>,
     pub meshes_ativos: HashMap<IVec3, Vec<Entity>>,
     pub chunks_para_remesh: HashSet<IVec3>, 
+    // NOVO: Guarda as tarefas de multithreading que estão rodando na CPU no momento
+    pub tarefas_geracao: HashMap<IVec3, Task<Vec<(IVec3, TipoBloco)>>>,
 }
 
 pub struct WorldPlugin;
