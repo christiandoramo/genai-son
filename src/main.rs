@@ -1,38 +1,43 @@
-use bevy::prelude::*;
+// src/main.rs
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-use bevy::window::CursorGrabMode;
+use bevy::prelude::*;
+use bevy::window::{CursorGrabMode, PresentMode, WindowResolution}; // <-- ATUALIZE OS IMPORTS
 
-mod physics;
+
+// Declarando nossos módulos isolados
 mod camera;
+mod hud;
+mod physics;
 mod player;
 mod world;
-mod hud;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "PROTÓTIPO 12: Controle Perfeito e Iluminação".into(),
-                resolution: bevy::window::WindowResolution::new(1024.0, 768.0),
+                title: "PROTÓTIPO - GENAI SON".into(),
+                resolution: WindowResolution::new(1024.0, 768.0),
+                present_mode: PresentMode::AutoNoVsync, // <-- DESTRAVA O LIMITADOR DE FPS DA TELA
                 ..default()
             }),
             ..default()
         }))
         .add_plugins(FrameTimeDiagnosticsPlugin)
-        .insert_resource(ClearColor(Color::srgb(0.4, 0.7, 0.9))) 
-        // A SOLUÇÃO DA ESCURIDÃO: Ilumina o lado oculto do planeta!
+        
+        // --- NOSSOS PLUGINS DA ENGINE ---
+        .add_plugins((
+            camera::CameraPlugin,
+            hud::HudPlugin,
+            world::WorldPlugin,
+            player::PlayerPlugin,
+        ))
+
+        .insert_resource(ClearColor(Color::srgb(0.4, 0.7, 0.9)))
         .insert_resource(AmbientLight {
             color: Color::WHITE,
-            brightness: 150.0, 
+            brightness: 200.0,
         })
-        .init_resource::<world::VoxelWorld>()
-        .add_systems(Startup, (world::gerar_mundo, player::spawn_player, hud::setup_hud))
-        .add_systems(Update, (
-            gerenciar_cursor,
-            player::movimento_e_fisica,
-            camera::sync_camera,
-            hud::atualizar_hud
-        ))
+        .add_systems(Update, gerenciar_cursor)
         .run();
 }
 

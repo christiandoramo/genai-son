@@ -2,177 +2,264 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-width=1.0">
-    <title>Sinfonia Espacial - Phaser + Tone</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Go/No-Go Clínico</title>
     <style>
-        body { margin: 0; background-color: #0d0d1a; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        #game-container { box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); }
-        #start-ui { position: absolute; text-align: center; pointer-events: none; }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #setup-screen, #result-screen {
+            text-align: center;
+            background: #222;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 600px;
+            overflow-y: auto;
+            max-height: 90vh;
+        }
+        #game-screen {
+            display: none;
+            font-size: 150px;
+            font-weight: bold;
+        }
+        .green { color: #00ff00; }
+        .red { color: #ff0000; }
+        .white { color: #ffffff; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover { background-color: #0056b3; }
+        select {
+            padding: 10px;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #444;
+            padding: 8px;
+            text-align: center;
+        }
+        th { background-color: #333; }
+        .error-row { background-color: rgba(255, 0, 0, 0.2); }
+        .stats-box {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
     </style>
 </head>
 <body>
 
-    <div id="start-ui">
-        <h2>SINFONIA ESPACIAL</h2>
-        <p>Clique no jogo para iniciar a música.</p>
-        <p>WASD para mover | ESPAÇO para impacto</p>
+    <div id="setup-screen">
+        <h2>Teste de Atenção e Impulsividade (Go/No-Go)</h2>
+        <p>Aperte <strong>ESPAÇO</strong> o mais rápido possível quando ver o <strong>'O' VERDE</strong>.</p>
+        <p><strong>NÃO APERTE NADA</strong> quando ver o <strong>'X' VERMELHO</strong>.</p>
+        <label for="duration">Escolha a duração do teste:</label><br>
+        <select id="duration">
+            <option value="1">1 Minuto (Apenas para testar o app)</option>
+            <option value="5">5 Minutos (Teste curto)</option>
+            <option value="15" selected>15 Minutos (Padrão Clínico Recomendado)</option>
+        </select><br>
+        <button onclick="startTest()">Iniciar Teste</button>
     </div>
 
-    <div id="game-container"></div>
+    <div id="game-screen"></div>
+
+    <div id="result-screen" style="display: none;">
+        <h2>Fim do Teste! Aqui estão seus resultados:</h2>
+        <div id="summary" class="stats-box"></div>
+        <button onclick="location.reload()">Fazer Novamente</button>
+        <h3>Log Detalhado (Limpo e Organizado)</h3>
+        <table id="results-table">
+            <thead>
+                <tr>
+                    <th>Tentativa</th>
+                    <th>Estímulo</th>
+                    <th>Reação (ms)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
 
     <script>
-        // --- 1. CONFIGURAÇÃO DO ÁUDIO (TONE.JS) ---
-        let audioIniciado = false;
-        
-        // Efeitos globais
-        const reverb = new Tone.Reverb({ decay: 4, wet: 0.5 }).toDestination();
-        const filtro = new Tone.Filter(400, "lowpass").connect(reverb);
+        let trials = [];
+        let currentTrial = 0;
+        let totalTrials = 0;
+        let results = [];
+        let stimulusTime;
+        let timeoutId;
+        let state = 'idle'; // idle, cross, stimulus
+        let testActive = false;
 
-        // Sintetizador Base (Acordes suaves)
-        const synthPad = new Tone.PolySynth(Tone.Synth, {
-            oscillator: { type: "triangle" },
-            envelope: { attack: 2, decay: 1, sustain: 1, release: 3 }
-        }).connect(filtro);
-        synthPad.volume.value = -10;
+        function startTest() {
+            const minutes = parseInt(document.getElementById('duration').value);
+            // Cada tentativa leva cerca de 2 segundos (1.5s max + 0.5s intervalo)
+            // 15 minutos = 900 segundos = ~450 tentativas
+            totalTrials = (minutes * 60) / 2; 
 
-        // Sintetizador Melódico (Arpejador plucky)
-        const synthMelodia = new Tone.Synth({
-            oscillator: { type: "sine" },
-            envelope: { attack: 0.05, decay: 0.2, sustain: 0, release: 1 }
-        }).connect(filtro);
-        synthMelodia.volume.value = -5;
-
-        // Bateria (Kick espacial)
-        const kickDrum = new Tone.MembraneSynth({
-            pitchDecay: 0.05,
-            octaves: 4,
-            oscillator: { type: "sine" },
-            envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4, attackCurve: "exponential" }
-        }).connect(reverb);
-        kickDrum.volume.value = -2;
-
-        // --- 2. CONFIGURAÇÃO DO JOGO (PHASER) ---
-        const config = {
-            type: Phaser.AUTO,
-            width: 800,
-            height: 800,
-            parent: 'game-container',
-            backgroundColor: '#0d0d1a',
-            physics: {
-                default: 'arcade',
-                arcade: { gravity: { y: 0 }, drag: 0.05 }
-            },
-            scene: { preload, create, update }
-        };
-
-        const game = new Phaser.Game(config);
-        let player;
-        let cursors;
-        let spaceKey;
-        let particles;
-
-        function preload() {
-            // Criamos uma textura na hora, sem precisar baixar imagens
-            let graphics = this.make.graphics({ x: 0, y: 0, add: false });
-            graphics.fillStyle(0x00ffff, 1);
-            graphics.fillRect(0, 0, 20, 20);
-            graphics.generateTexture('box', 20, 20);
-
-            let circle = this.make.graphics({ x: 0, y: 0, add: false });
-            circle.fillStyle(0x00ffff, 0.5);
-            circle.fillCircle(5, 5, 5);
-            circle.generateTexture('trail', 10, 10);
-        }
-
-        function create() {
-            player = this.physics.add.sprite(400, 400, 'box');
-            player.setCollideWorldBounds(true);
+            // Gerar array de tentativas (80% GO, 20% NOGO)
+            let goCount = Math.floor(totalTrials * 0.8);
+            let nogoCount = totalTrials - goCount;
             
-            // Rastro visual
-            particles = this.add.particles(0, 0, 'trail', {
-                speed: 20,
-                scale: { start: 1, end: 0 },
-                alpha: { start: 0.5, end: 0 },
-                lifespan: 800,
-                blendMode: 'ADD'
-            });
-            particles.startFollow(player);
+            for(let i=0; i<goCount; i++) trials.push('GO');
+            for(let i=0; i<nogoCount; i++) trials.push('NOGO');
+            
+            // Embaralhar as tentativas aleatoriamente
+            trials.sort(() => Math.random() - 0.5);
 
-            cursors = this.input.keyboard.addKeys('W,A,S,D');
-            spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-
-            // Iniciar Áudio ao Clicar (Regra dos navegadores modernos)
-            this.input.on('pointerdown', async () => {
-                if (!audioIniciado) {
-                    await Tone.start();
-                    document.getElementById('start-ui').style.display = 'none';
-                    iniciarMusica();
-                    audioIniciado = true;
-                }
-            });
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'block';
+            testActive = true;
+            
+            document.addEventListener('keydown', handleKeyPress);
+            runNextTrial();
         }
 
-        function update() {
-            if (!audioIniciado) return;
+        function runNextTrial() {
+            if (currentTrial >= totalTrials || !testActive) {
+                endTest();
+                return;
+            }
 
-            // Movimentação Fluida
-            const speed = 400;
-            player.setVelocity(0);
-
-            if (cursors.W.isDown) player.setVelocityY(-speed);
-            if (cursors.S.isDown) player.setVelocityY(speed);
-            if (cursors.A.isDown) player.setVelocityX(-speed);
-            if (cursors.D.isDown) player.setVelocityX(speed);
-
-            // Mapeando a posição X para o Filtro de Áudio (Abre e fecha o som)
-            // Tela de 0 a 800px -> Frequência de 200Hz a 4000Hz
-            const filterFreq = Phaser.Math.Linear(200, 4000, player.x / 800);
-            filtro.frequency.rampTo(filterFreq, 0.1);
-
-            // Impacto com Espaço
-            if (Phaser.Input.Keyboard.JustDown(spaceKey)) {
-                kickDrum.triggerAttackRelease("C1", "8n");
+            let type = trials[currentTrial];
+            let gameScreen = document.getElementById('game-screen');
+            
+            // Passo 1: Mostrar cruz de fixação
+            state = 'cross';
+            gameScreen.innerHTML = '<span class="white">+</span>';
+            
+            setTimeout(() => {
+                // Passo 2: Mostrar Estímulo
+                state = 'stimulus';
+                stimulusTime = performance.now();
                 
-                // Efeito visual tremendo a câmera levemente
-                this.cameras.main.shake(100, 0.01);
+                if (type === 'GO') {
+                    gameScreen.innerHTML = '<span class="green">O</span>';
+                } else {
+                    gameScreen.innerHTML = '<span class="red">X</span>';
+                }
+
+                // Esperar até 1500ms pela resposta
+                timeoutId = setTimeout(() => {
+                    if (state === 'stimulus') {
+                        // Tempo esgotou sem apertar
+                        recordResult(type, null);
+                    }
+                }, 1500);
+
+            }, 500); // Fica 500ms na cruz
+        }
+
+        function handleKeyPress(event) {
+            if (event.code === 'Space' && state === 'stimulus') {
+                let reactionTime = performance.now() - stimulusTime;
+                clearTimeout(timeoutId);
+                recordResult(trials[currentTrial], Math.round(reactionTime));
             }
         }
 
-        // --- 3. O COMPOSITOR ALGORÍTMICO ---
-        function iniciarMusica() {
-            Tone.Transport.bpm.value = 90;
-
-            // Sequência de Acordes (Lá Menor, Fá Maior, Dó Maior, Sol Maior)
-            const acordes = [
-                ["A3", "C4", "E4", "G4"],
-                ["F3", "A3", "C4", "E4"],
-                ["C3", "E3", "G3", "B3"],
-                ["G3", "B3", "D4", "F#4"]
-            ];
-            let passoAcorde = 0;
-
-            // Toca um acorde novo a cada compasso
-            Tone.Transport.scheduleRepeat((time) => {
-                synthPad.triggerAttackRelease(acordes[passoAcorde], "1m", time);
-                passoAcorde = (passoAcorde + 1) % acordes.length;
-            }, "1m");
-
-            // Arpejador Aleatório Controlado pelo Y do Jogador
-            const notasEscala = ["A4", "C5", "D5", "E5", "G5", "A5"];
+        function recordResult(type, rt) {
+            state = 'idle';
+            document.getElementById('game-screen').innerHTML = ''; // Limpa a tela
             
-            Tone.Transport.scheduleRepeat((time) => {
-                // Se o jogador estiver na parte de cima da tela (Y menor), toca notas mais rápidas ou diferentes
-                let probabilidade = Phaser.Math.Linear(0.8, 0.2, player.y / 800);
-                
-                if (Math.random() < probabilidade) {
-                    let notaAleatoria = notasEscala[Math.floor(Math.random() * notasEscala.length)];
-                    synthMelodia.triggerAttackRelease(notaAleatoria, "16n", time);
-                }
-            }, "8n");
+            let status = 'Correto';
+            let isError = false;
 
-            Tone.Transport.start();
+            if (type === 'GO' && rt === null) {
+                status = 'ERRO: Omissão (Desatenção)';
+                isError = true;
+            } else if (type === 'NOGO' && rt !== null) {
+                status = 'ERRO: Comissão (Impulsividade)';
+                isError = true;
+            }
+
+            results.push({
+                trialNumber: currentTrial + 1,
+                type: type,
+                rt: rt,
+                status: status,
+                isError: isError
+            });
+
+            currentTrial++;
+            
+            // Intervalo antes da próxima tentativa
+            setTimeout(runNextTrial, 500);
+        }
+
+        function endTest() {
+            testActive = false;
+            document.removeEventListener('keydown', handleKeyPress);
+            document.getElementById('game-screen').style.display = 'none';
+            document.getElementById('result-screen').style.display = 'block';
+            
+            processResults();
+        }
+
+        function processResults() {
+            let omissionErrors = 0;
+            let commissionErrors = 0;
+            let goRTs = [];
+            let tbody = document.querySelector('#results-table tbody');
+
+            results.forEach(r => {
+                // Calcular estatísticas
+                if (r.type === 'GO' && r.rt === null) omissionErrors++;
+                if (r.type === 'NOGO' && r.rt !== null) commissionErrors++;
+                if (r.type === 'GO' && r.rt !== null) goRTs.push(r.rt);
+
+                // Preencher Tabela
+                let row = document.createElement('tr');
+                if (r.isError) row.className = 'error-row';
+                
+                row.innerHTML = `
+                    <td>${r.trialNumber}</td>
+                    <td>${r.type}</td>
+                    <td>${r.rt ? r.rt + ' ms' : '---'}</td>
+                    <td>${r.status}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Cálculos Avançados
+            let avgRT = goRTs.length > 0 ? (goRTs.reduce((a, b) => a + b, 0) / goRTs.length).toFixed(0) : 0;
+            
+            let summaryDiv = document.getElementById('summary');
+            summaryDiv.innerHTML = `
+                <p><strong>Total de Tentativas:</strong> ${totalTrials}</p>
+                <hr style="border-color:#555;">
+                <p><strong>Erros de Omissão (Apagões de Atenção):</strong> ${omissionErrors}</p>
+                <p><strong>Erros de Comissão (Impulsividade / Falha de Freio):</strong> ${commissionErrors}</p>
+                <p><strong>Tempo de Reação Médio (Acertos GO):</strong> ${avgRT} ms</p>
+            `;
         }
     </script>
 </body>

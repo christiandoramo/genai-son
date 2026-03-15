@@ -13,6 +13,9 @@ bevy = { version = "0.14", features = ["dynamic_linking"] }
 # Matemática, Ruído e Geração de Universos
 noise = "0.9" # Para gerar montanhas e biomas
 
+# Informações do PC
+sysinfo = "0.30"
+
 [profile.dev]
 opt-level = 1
 [profile.dev.package."*"]
