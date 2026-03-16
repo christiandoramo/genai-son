@@ -54,33 +54,28 @@ pub fn atualizar_particulas_areia(
         particula.velocidade -= up * 18.0 * dt;
         let mut nova_pos = pos_atual + particula.velocidade * dt;
 
-        // 1. COLISÃO COM O MUNDO (Impede de afundar)
-        let coord = IVec3::new(
-            nova_pos.x.round() as i32,
-            nova_pos.y.round() as i32,
-            nova_pos.z.round() as i32,
-        );
+// 1. COLISÃO COM O MUNDO (Ejeção de Eixo Maior)
+        let coord = IVec3::new(nova_pos.x.round() as i32, nova_pos.y.round() as i32, nova_pos.z.round() as i32);
         if mundo.mapa.contains_key(&coord) {
-            let closest = nova_pos.clamp(
-                coord.as_vec3() - Vec3::splat(0.5),
-                coord.as_vec3() + Vec3::splat(0.5),
-            );
-            let dist = nova_pos.distance(closest);
+            let b_pos = coord.as_vec3();
+            let mut push_dir = nova_pos - b_pos;
+            
+            // Descobre por qual lado (face) o voxel entrou para empurrar ele de volta
+            let abs_x = push_dir.x.abs();
+            let abs_y = push_dir.y.abs();
+            let abs_z = push_dir.z.abs();
+            
+            if abs_x > abs_y && abs_x > abs_z { push_dir = Vec3::X * push_dir.x.signum(); } 
+            else if abs_y > abs_x && abs_y > abs_z { push_dir = Vec3::Y * push_dir.y.signum(); } 
+            else { push_dir = Vec3::Z * push_dir.z.signum(); }
 
-            if dist < raio {
-                let mut push = (nova_pos - closest).normalize_or_zero();
-                if push == Vec3::ZERO {
-                    push = up;
-                }
-
-                nova_pos += push * (raio - dist + 0.01);
-
-                // Fricção extrema: bateu no mundo Voxel, escorrega muito pouco
-                // Separamos o cálculo na variável `dot_vel` para o Rust não dar erro de Borrow
-                let dot_vel = particula.velocidade.dot(push);
-                particula.velocidade -= dot_vel * push;
-                particula.velocidade *= 0.3;
-            }
+            // Ejeta o voxel exatamente para a superfície do bloco + o raio dele (sem enterrar!)
+            nova_pos = b_pos + push_dir * (0.5 + raio + 0.01);
+            
+            // Fricção de "Cascalho": Permite que a areia escorregue e não grude como barro
+            let dot_vel = particula.velocidade.dot(push_dir);
+            particula.velocidade -= dot_vel * push_dir;
+            particula.velocidade *= 0.8; // Era 0.3! Agora a energia se conserva mais e eles escorrem.
         }
 
         // 2. COLISÃO ENTRE GRÃOS (O Efeito Empilhamento)
@@ -99,7 +94,7 @@ pub fn atualizar_particulas_areia(
                 let push_dir = dist_vec / dist;
 
                 nova_pos += push_dir * overlap * 0.6; // Empurrão rígido
-                particula.velocidade *= 0.5; // Absorve o impacto
+                particula.velocidade *= 0.85; // Absorve o impacto
             }
         }
 
