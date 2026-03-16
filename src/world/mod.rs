@@ -8,7 +8,7 @@ mod mesher;
 
 pub const PLANET_RADIUS: f32 = 80.0; 
 pub const CHUNK_SIZE: i32 = 32;
-pub const RENDER_DISTANCE: i32 = 2;
+pub const RENDER_DISTANCE: i32 = 3;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TipoBloco { Grama, Pedra, Areia, Agua, Nucleo, Neve }
@@ -23,7 +23,6 @@ pub struct ChunkManager {
     pub chunks_gerados: HashSet<IVec3>,
     pub meshes_ativos: HashMap<IVec3, Vec<Entity>>,
     pub chunks_para_remesh: HashSet<IVec3>, 
-    // NOVO: Guarda as tarefas de multithreading que estão rodando na CPU no momento
     pub tarefas_geracao: HashMap<IVec3, Task<Vec<(IVec3, TipoBloco)>>>,
 }
 

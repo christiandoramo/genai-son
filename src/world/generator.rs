@@ -18,40 +18,51 @@ pub fn calcular_bloco(x: f32, y: f32, z: f32, simplex: &OpenSimplex) -> Option<T
     let dir = pos.normalize_or_zero();
     let (nx, ny, nz) = (dir.x as f64, dir.y as f64, dir.z as f64);
 
-    let base_altura = simplex.get([nx * 1.5, ny * 1.5, nz * 1.5]) * 22.0;
-    let mut modificador_relevo = base_altura;
+    // =========================================================================
+    // BIOMA REFINADO: Sem covas profundas!
+    // =========================================================================
+    let continentes = simplex.get([nx * 1.2, ny * 1.2, nz * 1.2]) as f32;
 
-    if base_altura > 0.0 {
-        modificador_relevo += simplex.get([nx * 4.0, ny * 4.0, nz * 4.0]) * 8.0;
-        if base_altura > 5.0 {
-            modificador_relevo +=
-                (simplex.get([nx * 8.0, ny * 8.0, nz * 8.0]).abs() * -1.0 + 0.5) * 25.0;
-        }
+    // Usamos ".max(0.0)" para garantir que colinas SÓ SOBEM, nunca cavam buracos!
+    let colinas = (simplex.get([nx * 3.0, ny * 3.0, nz * 3.0]) as f32).max(0.0);
+
+    // Detalhes mais suaves para evitar cubos soltos e pontiagudos
+    let detalhes = (simplex.get([nx * 6.0, ny * 6.0, nz * 6.0]) as f32).max(0.0);
+
+    let mut altura_superficie = PLANET_RADIUS + (continentes * 10.0);
+
+    // Terra firme ganha as elevações extras
+    if continentes > -0.1 {
+        altura_superficie += colinas * 12.0;
+        altura_superficie += detalhes * 4.0;
     }
 
-    modificador_relevo = (modificador_relevo / 2.0).round() * 2.0;
-
-    let superficie = PLANET_RADIUS + modificador_relevo as f32;
-    let nivel_mar = PLANET_RADIUS + 0.5;
+    let superficie = (altura_superficie / 2.0).round() * 2.0;
+    let nivel_mar = PLANET_RADIUS + 0.0;
 
     if dist_base <= superficie {
-        let altitude = dist_base - PLANET_RADIUS;
-        if altitude > 22.0 {
-            return Some(TipoBloco::Neve);
-        }
-        if altitude > 8.0 {
+        let profundidade = superficie - dist_base;
+
+        if continentes < -0.2 && dist_base <= nivel_mar + 1.5 {
+            return Some(TipoBloco::Areia);
+        } else if continentes > 0.4 && superficie > PLANET_RADIUS + 15.0 {
+            if profundidade < 1.0 {
+                return Some(TipoBloco::Neve);
+            }
+            return Some(TipoBloco::Pedra);
+        } else {
+            if profundidade < 1.0 {
+                return Some(TipoBloco::Grama);
+            }
+            if profundidade < 3.0 {
+                return Some(TipoBloco::Areia);
+            }
             return Some(TipoBloco::Pedra);
         }
-        if dist_base <= nivel_mar + 1.5 && modificador_relevo < 2.0 {
-            return Some(TipoBloco::Areia);
-        }
-        if dist_base > superficie - 4.0 {
-            return Some(TipoBloco::Grama);
-        }
-        return Some(TipoBloco::Nucleo);
     } else if dist_base <= nivel_mar {
         return Some(TipoBloco::Agua);
     }
+
     None
 }
 
@@ -66,8 +77,8 @@ pub fn gerenciar_chunks(
     let Ok(player_transform) = player_query.get_single() else {
         return;
     };
-    let p_pos = player_transform.translation;
 
+    let p_pos = player_transform.translation;
     let player_chunk = IVec3::new(
         (p_pos.x / CHUNK_SIZE as f32).floor() as i32,
         (p_pos.y / CHUNK_SIZE as f32).floor() as i32,
@@ -76,7 +87,7 @@ pub fn gerenciar_chunks(
 
     let mut chunks_na_area = Vec::new();
 
-    // Forma de Cubo (Mais estável que esfera para o Greedy Mesher)
+    // VOLTAMOS AO PADRÃO ESCALÁVEL: Geração ao redor do Jogador!
     for cx in -RENDER_DISTANCE..=RENDER_DISTANCE {
         for cy in -RENDER_DISTANCE..=RENDER_DISTANCE {
             for cz in -RENDER_DISTANCE..=RENDER_DISTANCE {
@@ -85,10 +96,24 @@ pub fn gerenciar_chunks(
         }
     }
 
+    // ===============================================================
+    // O SEGREDO DO SPAWN INSTANTÂNEO
+    // Em vez de gerar os blocos de ar ao redor do jogador no céu,
+    // priorizamos o CHÃO que está exatamente abaixo dele!
+    // ===============================================================
+    let dir_pro_nucleo = p_pos.normalize_or_zero();
+    let pos_chao = dir_pro_nucleo * PLANET_RADIUS;
+    let chunk_chao = IVec3::new(
+        (pos_chao.x / CHUNK_SIZE as f32).floor() as i32,
+        (pos_chao.y / CHUNK_SIZE as f32).floor() as i32,
+        (pos_chao.z / CHUNK_SIZE as f32).floor() as i32,
+    );
+
     chunks_na_area.sort_by_key(|c| {
-        let dx = c.x - player_chunk.x;
-        let dy = c.y - player_chunk.y;
-        let dz = c.z - player_chunk.z;
+        // Agora a engine ordena pela distância do CHÃO, não da câmera!
+        let dx = c.x - chunk_chao.x;
+        let dy = c.y - chunk_chao.y;
+        let dz = c.z - chunk_chao.z;
         dx * dx + dy * dy + dz * dz
     });
 
@@ -115,23 +140,30 @@ pub fn gerenciar_chunks(
         }
     }
     for chunk_pos in tarefas_a_remover {
-        chunk_manager.tarefas_geracao.remove(&chunk_pos); // Derrubar a Task poupa processamento!
+        chunk_manager.tarefas_geracao.remove(&chunk_pos);
     }
 
-    // 2. DISPARAR GERAÇÃO EM BACKGROUND (MULTITHREADING)
+    // 2. DISPARAR GERAÇÃO EM BACKGROUND (COM FREIO DE EMERGÊNCIA)
     let thread_pool = AsyncComputeTaskPool::get();
+    let mut tasks_disparadas_neste_frame = 0;
+
     for chunk_pos in &chunks_na_area {
-        // Se ainda não geramos esse chunk e não há uma thread trabalhando nele...
         if !chunk_manager.chunks_gerados.contains(chunk_pos)
             && !chunk_manager.tarefas_geracao.contains_key(chunk_pos)
         {
             let c_pos = *chunk_pos;
 
-            // Joga a matemática pesada para os núcleos ociosos do seu processador!
+            // OTIMIZAÇÃO EXTREMA: Se o Chunk está no espaço sideral profundo,
+            // nem manda pra Thread! Marca como vazio instantaneamente.
+            let centro_chunk = c_pos.as_vec3() * CHUNK_SIZE as f32;
+            if centro_chunk.length() > PLANET_RADIUS + 80.0 {
+                chunk_manager.chunks_gerados.insert(c_pos);
+                continue; // Pula sem gastar processamento!
+            }
+
             let task = thread_pool.spawn(async move {
                 let simplex = OpenSimplex::new(42);
                 let mut blocos_gerados = Vec::new();
-
                 let start_x = c_pos.x * CHUNK_SIZE;
                 let start_y = c_pos.y * CHUNK_SIZE;
                 let start_z = c_pos.z * CHUNK_SIZE;
@@ -155,19 +187,22 @@ pub fn gerenciar_chunks(
             });
 
             chunk_manager.tarefas_geracao.insert(c_pos, task);
+
+            tasks_disparadas_neste_frame += 1;
+            if tasks_disparadas_neste_frame >= 6 {
+                break;
+            } // Limite gentil para a CPU
         }
     }
-
-    // 3. COLETAR RESULTADOS SEM TRAVAR O JOGO
+    // 3. COLETAR RESULTADOS
     let mut chunks_concluidos = Vec::new();
     for (chunk_pos, task) in chunk_manager.tarefas_geracao.iter_mut() {
         if let Some(blocos) = future::block_on(future::poll_once(task)) {
             chunks_concluidos.push((*chunk_pos, blocos));
-            break; // <--- O SEGREDO 1: Só injeta 1 chunk no HashMap por frame!
+            break;
         }
     }
 
-    // Salvar os resultados prontos na RAM (Extremamente rápido, O(1))
     for (chunk_pos, blocos) in chunks_concluidos {
         chunk_manager.tarefas_geracao.remove(&chunk_pos);
         for (w_pos, tipo) in blocos {
@@ -176,7 +211,6 @@ pub fn gerenciar_chunks(
         chunk_manager.chunks_gerados.insert(chunk_pos);
         chunk_manager.chunks_para_remesh.insert(chunk_pos);
 
-        // Avisa os vizinhos que ganhamos blocos novos (Remove paredes internas de vidro)
         for dir in [
             IVec3::X,
             IVec3::NEG_X,
@@ -192,7 +226,7 @@ pub fn gerenciar_chunks(
         }
     }
 
-    // 4. A CURA DO CACHE FANTASMA:
+    // 4. CURA DO CACHE
     for chunk_pos in &chunks_na_area {
         if chunk_manager.chunks_gerados.contains(chunk_pos)
             && !chunk_manager.meshes_ativos.contains_key(chunk_pos)
@@ -201,7 +235,7 @@ pub fn gerenciar_chunks(
         }
     }
 
-    // 5. DESENHAR POLÍGONOS (1 por frame para segurar o FPS)
+    // 5. DESENHAR
     let mut chunk_to_mesh = None;
     for c in &chunks_na_area {
         if chunk_manager.chunks_para_remesh.contains(c) {

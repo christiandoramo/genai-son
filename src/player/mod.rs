@@ -3,7 +3,8 @@ use bevy::prelude::*;
 use crate::world::PLANET_RADIUS;
 
 pub mod movement;
-pub mod god_mode; // <--- Registrando o novo módulo!
+pub mod god_mode;
+pub mod weapons; 
 
 pub const GRAVITY_INFLUENCE_RADIUS: f32 = PLANET_RADIUS * 5.0;
 
@@ -15,9 +16,12 @@ impl Plugin for PlayerPlugin {
            .add_systems(Update, (
                movement::tratar_inputs_estado,
                movement::rotacionar_camera,
-               // Chama a função do arquivo novo quando estiver no modo Deus:
                god_mode::movimento_god_mode.run_if(movement::is_god_mode),
                movement::movimento_sobrevivencia.run_if(movement::is_survival_mode),
+               
+               weapons::atirar_pistola,
+               weapons::atualizar_projeteis,
+               crate::physics::sand::atualizar_particulas_areia, // <--- Novo motor físico!
            ));
     }
 }
@@ -31,4 +35,5 @@ pub struct Player {
     pub yaw: f32,
     pub god_mode: bool,
     pub god_speed: f32,
+    pub physics_up: Vec3, // A memória da gravidade!
 }

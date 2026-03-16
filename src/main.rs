@@ -1,10 +1,8 @@
 // src/main.rs
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, PresentMode, WindowResolution}; // <-- ATUALIZE OS IMPORTS
+use bevy::window::{CursorGrabMode, PresentMode, WindowResolution};
 
-
-// Declarando nossos módulos isolados
 mod camera;
 mod hud;
 mod physics;
@@ -17,28 +15,41 @@ fn main() {
             primary_window: Some(Window {
                 title: "PROTÓTIPO - GENAI SON".into(),
                 resolution: WindowResolution::new(1024.0, 768.0),
-                present_mode: PresentMode::AutoNoVsync, // <-- DESTRAVA O LIMITADOR DE FPS DA TELA
+                present_mode: PresentMode::AutoNoVsync, 
                 ..default()
             }),
             ..default()
         }))
         .add_plugins(FrameTimeDiagnosticsPlugin)
-        
-        // --- NOSSOS PLUGINS DA ENGINE ---
         .add_plugins((
             camera::CameraPlugin,
             hud::HudPlugin,
             world::WorldPlugin,
             player::PlayerPlugin,
         ))
-
-        .insert_resource(ClearColor(Color::srgb(0.4, 0.7, 0.9)))
+        // Diminuímos a luz ambiente para as sombras ficarem mais visíveis
+        .insert_resource(ClearColor(Color::srgb(0.4, 0.7, 0.9))) // Azul claro
         .insert_resource(AmbientLight {
             color: Color::WHITE,
-            brightness: 100.0,
+            brightness: 80.0, 
         })
+        .add_systems(Startup, setup_luzes) // <--- Chamando o nosso Sol
         .add_systems(Update, gerenciar_cursor)
         .run();
+}
+
+// O nosso Sol direcional que projeta sombras perfeitas nos Voxels
+fn setup_luzes(mut commands: Commands) {
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            illuminance: 3000.0, // Brilho do Sol
+            shadows_enabled: false, // A mágica acontece aqui
+            ..default()
+        },
+        // Inclinamos o sol para as sombras ficarem diagonais e bonitas
+        transform: Transform::from_xyz(100.0, 100.0, 50.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
 }
 
 fn gerenciar_cursor(

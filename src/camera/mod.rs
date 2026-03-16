@@ -17,6 +17,8 @@ pub struct MainCamera;
 pub struct CameraPivot;
 
 pub fn construir_rig_camera(parent: &mut ChildBuilder) {
+    let raio_visao = crate::world::RENDER_DISTANCE as f32 * crate::world::CHUNK_SIZE as f32;
+
     parent
         .spawn((
             SpatialBundle::from_transform(Transform::from_xyz(0.0, 0.7, 0.0)),
@@ -24,12 +26,19 @@ pub fn construir_rig_camera(parent: &mut ChildBuilder) {
         ))
         .with_children(|pivot| {
             pivot.spawn((
-                Camera3dBundle::default(),
+                Camera3dBundle {
+                    projection: Projection::Perspective(PerspectiveProjection {
+                        near: 0.01, // O SEGREDO: Corta tudo a 1 centímetro! Fim do Raio-X nas paredes.
+                        far: 3000.0, 
+                        ..default()
+                    }),
+                    ..default()
+                },
                 FogSettings {
-                    color: Color::srgb(0.4, 0.7, 0.9),
+                    color: Color::srgb(0.4, 0.7, 0.9), 
                     falloff: FogFalloff::Linear {
-                        start: 30.0,
-                        end: 65.0, // Névoa densa protegendo os chunks de carregar na sua cara
+                        start: raio_visao * 0.9, // Empurra a névoa lá pro horizonte
+                        end: raio_visao * 1.3,   
                     },
                     ..default()
                 },
