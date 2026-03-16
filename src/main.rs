@@ -1,13 +1,12 @@
-// src/main.rs
-
-mod engine; // Importa o arquivo engine.rs
+mod engine;
 
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{WindowEvent, DeviceEvent, ElementState},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    window::{Window, WindowId},
+    window::{Window, WindowId, CursorGrabMode},
+    keyboard::PhysicalKey,
 };
 use engine::State;
 
@@ -24,7 +23,27 @@ impl<'a> ApplicationHandler for App<'a> {
                 .with_inner_size(winit::dpi::PhysicalSize::new(1280, 720));
             
             let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
+            
+            // Trava o mouse no centro da tela e o esconde
+            let _ = window.set_cursor_grab(CursorGrabMode::Confined)
+                .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked));
+            window.set_cursor_visible(false);
+
             self.state = Some(pollster::block_on(State::new(window)));
+        }
+    }
+
+    // CAPTURA O MOUSE (Movimento bruto)
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: DeviceEvent,
+    ) {
+        if let Some(state) = &mut self.state {
+            if let DeviceEvent::MouseMotion { delta } = event {
+                state.mouse_move(delta.0, delta.1);
+            }
         }
     }
 
@@ -36,9 +55,21 @@ impl<'a> ApplicationHandler for App<'a> {
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(physical_size) => {
-                state.resize(physical_size);
+            WindowEvent::Resized(physical_size) => state.resize(physical_size),
+            
+            // CAPTURA O TECLADO
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let PhysicalKey::Code(keycode) = event.physical_key {
+                    // Aperte ESCAPE para fechar e liberar o mouse!
+                    if keycode == winit::keyboard::KeyCode::Escape {
+                        event_loop.exit();
+                    }
+                    
+                    let pressed = event.state == ElementState::Pressed;
+                    state.input(keycode, pressed);
+                }
             }
+            
             WindowEvent::RedrawRequested => {
                 match state.render() {
                     Ok(_) => {}
