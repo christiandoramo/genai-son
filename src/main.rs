@@ -42,8 +42,8 @@ fn main() {
 fn setup_luzes(mut commands: Commands) {
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
-            illuminance: 3000.0, // Brilho do Sol
-            shadows_enabled: false, // A mágica acontece aqui
+            illuminance: 1500.0, // Brilho do Sol
+            shadows_enabled: true, // A mágica acontece aqui
             ..default()
         },
         // Inclinamos o sol para as sombras ficarem diagonais e bonitas
