@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define o nome do arquivo de saída
-OUTPUT="copia.md"
+OUTPUT="copy.md"
 
 # Cria (ou sobrescreve) o arquivo vazio
 > "$OUTPUT"
