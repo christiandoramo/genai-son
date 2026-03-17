@@ -1,4 +1,4 @@
-use crate::camera::Camera;
+use crate::entities::camera::Camera;
 use winit::keyboard::KeyCode;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -12,7 +12,7 @@ pub struct Player {
     pub active_weapon: Weapon,
     pub selected_material: u32,
     pub flashlight: bool,
-    pub freeze_time: bool, // NOVO: Botão N
+    pub freeze_time: bool, 
     pub is_shooting: bool,
     pub cooldown: f32, 
     keys: [bool; 255],

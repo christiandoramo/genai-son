@@ -1,9 +1,7 @@
-mod engine;
-mod camera;
 mod world;
-mod biomes;
-mod player; 
-mod projectiles;
+mod entities;
+mod graphics;
+mod engine;
 
 use std::sync::Arc;
 use winit::{
@@ -59,7 +57,7 @@ impl<'a> ApplicationHandler for App<'a> {
             WindowEvent::RedrawRequested => {
                 match state.render() {
                     Ok(_) => {}
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                    Err(wgpu::SurfaceError::Lost) => state.resize(state.gpu.size),
                     Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
                     Err(e) => eprintln!("{:?}", e),
                 }

@@ -100,32 +100,45 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let voxel_type = raw_type % 100u; // Ignora se é "detrito caindo" e pega só a cor nativa!
         var base_color = vec3<f32>(1.0);
 
+     // ... (definição de cores base acima) ...
         if (voxel_type == 4u) { let is_white = (u32(map_pos.x) + u32(map_pos.y) + u32(map_pos.z)) % 2u == 0u; base_color = select(vec3<f32>(0.15), vec3<f32>(0.85), is_white); } 
-        else if (voxel_type == 1u) { base_color = vec3<f32>(0.9, 0.8, 0.2); } // Areia
-        else if (voxel_type == 2u) { base_color = vec3<f32>(0.2, 0.4, 0.9); } // Água
-        else if (voxel_type == 3u) { base_color = vec3<f32>(0.6, 0.6, 0.6); } // Gás
-        else if (voxel_type == 5u) { base_color = vec3<f32>(0.4, 0.25, 0.1); } // Terra
-        else if (voxel_type == 7u) { base_color = vec3<f32>(0.2, 0.6, 0.2); } // Grama
-        else if (voxel_type == 8u) { base_color = vec3<f32>(0.4, 0.4, 0.4); } // Pedra
-        else if (voxel_type == 9u) { base_color = vec3<f32>(1.0, 0.3, 0.0); } // Magma
+        else if (voxel_type == 1u) { base_color = vec3<f32>(0.9, 0.8, 0.2); } 
+        else if (voxel_type == 2u) { 
+            // Água: Adiciona movimento senoidal sutil na cor
+            let wave = sin(uniforms.time * 2.0 + hit_pos.x + hit_pos.z) * 0.05;
+            base_color = vec3<f32>(0.2, 0.4, 0.9) + wave; 
+        } 
+        else if (voxel_type == 3u) { base_color = vec3<f32>(0.6, 0.6, 0.6); } 
+        else if (voxel_type == 5u) { base_color = vec3<f32>(0.4, 0.25, 0.1); } 
+        else if (voxel_type == 7u) { base_color = vec3<f32>(0.2, 0.6, 0.2); } 
+        else if (voxel_type == 8u) { base_color = vec3<f32>(0.4, 0.4, 0.4); } 
+        else if (voxel_type == 9u) { 
+            // Magma: Movimento mais frenético e cor emissiva pura
+            let pulsate = sin(uniforms.time * 4.0 + hit_pos.x * 2.0 + hit_pos.y) * 0.1;
+            base_color = vec3<f32>(1.0, 0.3, 0.0) + pulsate; 
+        } 
 
         let noise = f32((map_pos.x * 7 + map_pos.y * 3 + map_pos.z * 5) % 3) * 0.1;
         base_color = base_color + noise;
         
         diffuse = max(dot(vec3<f32>(select(0.0, -f32(step.x), side == 0), select(0.0, -f32(step.y), side == 1), select(0.0, -f32(step.z), side == 2)), sun_dir), 0.0); 
         
-        if (voxel_type == 9u) { diffuse = 1.0; final_sun_light = vec3<f32>(1.0); } // Magma emite luz!
+        // Magma ignora a luz do sol (Fullbright / Glow)
+        if (voxel_type == 9u) { 
+            color = base_color * 1.3; // Glow extra forte
+        } else {
+            color = base_color * (diffuse * final_sun_light + vec3<f32>(max(0.0, sun_dir.y * 0.2)));
+        }
         
-        color = base_color * (diffuse * final_sun_light + vec3<f32>(max(0.0, sun_dir.y * 0.2)));
-        
-        // LANTERNA TÁTICA (Branca, Suave, Gigante)
+        // LANTERNA TÁTICA (Ajustada para ser suave)
         if (uniforms.flashlight_on == 1u) {
             let to_hit = normalize(hit_pos - ro);
             let spot = dot(to_hit, forward);
-            if (spot > 0.7) { // Cone Gigante
-                let falloff = smoothstep(0.7, 0.98, spot); 
-                let dist_fade = smoothstep(120.0, 5.0, voxel_dist); 
-                color += vec3<f32>(1.0, 1.0, 1.0) * (falloff * dist_fade * 1.5);
+            if (spot > 0.85) { // Cone fechado e focado
+                let falloff = smoothstep(0.85, 0.98, spot); 
+                let dist_fade = smoothstep(60.0, 2.0, voxel_dist); // Decaimento mais realista
+                // Cor amarelada quente e muito mais suave (0.4 de intensidade invés de 1.5)
+                color += vec3<f32>(1.0, 0.95, 0.85) * (falloff * dist_fade * 0.4);
             }
         }
     }

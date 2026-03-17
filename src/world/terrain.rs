@@ -1,4 +1,5 @@
-use crate::biomes::generate_voxel;
+// Atualizado para buscar biomes dentro do mesmo domínio
+use crate::world::biomes::generate_voxel;
 use noise::OpenSimplex;
 
 pub const WORLD_X: usize = 512;
