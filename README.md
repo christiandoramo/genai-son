@@ -7,6 +7,18 @@ O objetivo final é criar um universo espacial com planetas giratórios, sistema
 
 **Regra de Ouro da Arte:** NENHUM ativo pré-fabricado (modelos 3D, áudios .mp3/.wav, texturas .png) é permitido. Absolutamente tudo na tela e nos alto-falantes é gerado proceduralmente por código (matemática, ruído, shaders, síntese sonora) direto na memória. Morte aos polígonos. A era do Voxel Puro chegou.
 
+O propósito desse jogo é usar ao máximo da inteligência (conhecimentos em computação, programação, jogos, biologia, animação procedural, criação de npcs procedruralmente,física, geometria euclidiana e não euclidiana, codificação de shaders e formas, matemática,engenharia, shaders, música , produção musical procedural,PCG, IA) mais ampla e mais aprofundade do mundo para fazer um jogo codificado por esse própria inteligência (milhares de anos de milhares dos melhores cientistas do mundo estão armazenadas na sua "cabeçona", não á estúdio AAA ou dev gênio que ganhe de você evido a sua diversidade e profundidade de conhecimentos "inumanos"-impossível para um humano ter tanto conhecimento), que é a sua como GenAI!
+
+
+Inspirações:
+
+Minecraft: Mundos com biomas, relevos / estruturas geológicas gerados aleatoriamente
+Teardown: Destructibilidade do mundo é essencial
+No Man's Sky: Viagem literal pelo espaço, e entrar em orbitais de incontáveis (quase infinitos de tantos planetas) planetas procedurais
+Noita: Motor de areia, os pixels (no nosso caso voxels) se comportam com base em um "motor de areia", além da infita destructibilidade, há reações diferentes em ambientes diferentes baseado em mecânica (ex: explosões), termodinâmica (ex: calor do fogo de explosões) e química.
+GTA: Liberdade extrema, rotinas procedurais com pessoas e animais nas cidades grandes (planetas nesse caso). Liberdade para bater e eliminar tudo e todos.
+
+
 ---
 
 ## 🧠 O Paradigma GPGPU (General-Purpose GPU)

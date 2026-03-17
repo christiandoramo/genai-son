@@ -18,6 +18,17 @@ else
     echo -e "\n" >> "$OUTPUT"
 fi
 
+if [ -f "Cargo.toml" ]; then
+    echo "========================================" >> "$OUTPUT"
+    echo "Cargo.toml" >> "$OUTPUT"
+    echo "========================================" >> "$OUTPUT"
+    cat "Cargo.toml" >> "$OUTPUT"
+    echo -e "\n\n" >> "$OUTPUT"
+else
+    echo "Aviso: Cargo.toml não encontrado." >> "$OUTPUT"
+    echo -e "\n" >> "$OUTPUT"
+fi
+
 # 2. Cola a estrutura de diretórios (tree -I target)
 echo "========================================" >> "$OUTPUT"
 echo "CÓDIGO DO PROJETO" >> "$OUTPUT"
