@@ -9,5 +9,8 @@ pub struct Uniforms {
     pub camera_pos: [f32; 3],
     pub flashlight_on: u32,
     pub camera_front: [f32; 3],
-    pub _padding3: f32,
+    // pub _padding3: f32,
+    pub pad1: f32,
+    pub camera_up: [f32; 3],
+    pub pad2: f32,
 }

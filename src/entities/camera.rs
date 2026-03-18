@@ -17,18 +17,18 @@ impl Camera {
 
     pub fn mouse_move(&mut self, dx: f64, dy: f64, is_god_mode: bool) {
         let sensitivity = 0.003;
-        let up_axis = if is_god_mode { [0.0, 1.0, 0.0] } else { self.up };
+        // No God Mode, usamos o UP atual do jogador para não dar trancos!
+        let up_axis = self.up;
 
-        // Gira o corpo (Esquerda/Direita)
+        // EIXO X (Mouse Esquerda/Direita) -> dx positivo vira pra direita
         self.local_forward = math::normalize_or_zero(math::rotate_vector(
-            self.local_forward, up_axis, (dx as f32) * sensitivity
+            self.local_forward, up_axis, (dx as f32) * sensitivity 
         ));
 
-        // Gira apenas a cabeça (Cima/Baixo) com trava de limite (89 graus)
-        self.pitch -= (dy as f32) * sensitivity;
+        // EIXO Y (Mouse Cima/Baixo) -> dy controla a inclinação da cabeça
+        self.pitch += (dy as f32) * sensitivity;
         self.pitch = self.pitch.clamp(-1.55, 1.55);
 
-        // Garante que o corpo nunca desalinhe do horizonte
         let right = math::normalize_or_zero(math::cross(self.local_forward, up_axis));
         self.local_forward = math::normalize_or_zero(math::cross(up_axis, right));
     }
@@ -44,19 +44,18 @@ impl Camera {
         }
         self.up = new_up;
 
-        // Limpeza de erros matemáticos
         let right = math::normalize_or_zero(math::cross(self.local_forward, self.up));
         self.local_forward = math::normalize_or_zero(math::cross(self.up, right));
     }
 
     pub fn get_front(&self) -> [f32; 3] {
-        // A mágica: O shader recebe a visão final combinando o corpo e a cabeça!
-        let right = math::normalize_or_zero(math::cross(self.local_forward, self.up));
+        let right = self.get_right();
         math::normalize_or_zero(math::rotate_vector(self.local_forward, right, self.pitch))
     }
 
     pub fn get_right(&self) -> [f32; 3] {
-        math::normalize_or_zero(math::cross(self.local_forward, self.up))
+        // Correção definitiva da Direita/Esquerda: Cima Cruzado com Frente
+        math::normalize_or_zero(math::cross(self.up, self.local_forward))
     }
 }
 

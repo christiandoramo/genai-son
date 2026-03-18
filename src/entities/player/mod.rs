@@ -53,10 +53,6 @@ impl Player {
             match keycode {
                 KeyCode::KeyG => {
                     self.mode = if self.mode == GameMode::God { GameMode::Normal } else { GameMode::God };
-                    if self.mode == GameMode::God {
-                        self.camera.up = [0.0, 1.0, 0.0];
-                        self.visual_up = [0.0, 1.0, 0.0];
-                    }
                 }
                 KeyCode::KeyF => self.flashlight = !self.flashlight,
                 KeyCode::KeyN => self.is_day = !self.is_day,

@@ -37,16 +37,20 @@ impl<'a> State<'a> {
 
         let initial_cam_pos = [128.0, 220.0, 128.0];
 
+        // Instanciamos o jogador ANTES para podermos usar os dados dele!
+        let player = Player::new(initial_cam_pos);
+
         let uniforms = Uniforms {
             resolution: [gpu.config.width as f32, gpu.config.height as f32],
             time: 0.0,
             action: 0,
-            camera_pos: initial_cam_pos,
+            camera_pos: player.camera.pos,
             flashlight_on: 0,
-            camera_front: [0.0, 0.0, 1.0],
-            _padding3: 0.0,
+            camera_front: player.camera.get_front(),
+            pad1: 0.0,
+            camera_up: player.visual_up, // Usa do 'player' local, não de 'self'
+            pad2: 0.0,
         };
-
         let uniform_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Uniform"),
             size: std::mem::size_of::<Uniforms>() as u64,
@@ -130,7 +134,7 @@ impl<'a> State<'a> {
             last_fps_time: std::time::Instant::now(),
             frame_count: 0,
             sys: System::new_all(),
-            player: Player::new(initial_cam_pos),
+            player,
             time_of_day: 0.0,
         }
     }
@@ -200,12 +204,16 @@ impl<'a> State<'a> {
             camera_pos: self.player.camera.pos,
             flashlight_on: if self.player.flashlight { 1 } else { 0 },
             camera_front: self.player.camera.get_front(),
-            _padding3: 0.0,
+            pad1: 0.0,
+            camera_up: self.player.visual_up, // <--- A MÁGICA ENVIADA PRA GPU
+            pad2: 0.0,
         };
+
         self.gpu
             .queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
     }
+
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         self.update();
         let output = self.gpu.surface.get_current_texture()?;

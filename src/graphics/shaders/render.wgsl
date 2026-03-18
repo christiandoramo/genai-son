@@ -1,7 +1,9 @@
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
 };
+
 struct Uniforms {
     resolution: vec2<f32>,
     time: f32,
@@ -9,7 +11,9 @@ struct Uniforms {
     camera_pos: vec3<f32>,
     flashlight_on: u32,
     camera_front: vec3<f32>,
-    _padding3: f32,
+    pad1: f32,
+    camera_up: vec3<f32>,
+    pad2: f32,
 };
 struct WorldBuffer {
     data: array<u32>,
@@ -43,12 +47,19 @@ fn get_voxel(p: vec3<u32>) -> u32 {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // 1. RESOLUÇÃO PSX (320x240)
     let retro_res = vec2<f32>(320.0, 240.0);
     var uv = floor(in.clip_position.xy / uniforms.resolution.xy * retro_res) / retro_res;
-    uv = uv * 2.0 - 1.0; uv.x *= uniforms.resolution.x / uniforms.resolution.y; uv.y = -uv.y;
+    uv = uv * 2.0 - 1.0;
+    uv.x *= uniforms.resolution.x / uniforms.resolution.y;
+    uv.y = -uv.y;
 
+    // 2. A CURA DA CÂMERA: A GPU agora respeita o Cima do Planeta!
     var ro = uniforms.camera_pos;
-    let forward = normalize(uniforms.camera_front); let right = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), forward)); let up = cross(forward, right);
+    let forward = normalize(uniforms.camera_front);
+    let up_vec = normalize(uniforms.camera_up); // Usa a gravidade real!
+    let right = normalize(cross(up_vec, forward));
+    let up = cross(forward, right);
     let rd = normalize(forward + uv.x * right + uv.y * up);
 
     let sun_dir = normalize(vec3<f32>(sin(uniforms.time), cos(uniforms.time), 0.5));
@@ -214,7 +225,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let fog_factor = clamp((voxel_dist * 0.05) / 20.0, 0.0, 1.0);
     color = mix(color, sky_color, fog_factor);
-    color = floor(color * 8.0) / 8.0;
+
+    // 3. EFEITO PS1: BAYER DITHERING 4x4
+    let dither_mat = array<f32, 16>(
+        0.0 / 16.0, 8.0 / 16.0, 2.0 / 16.0, 10.0 / 16.0,
+        12.0 / 16.0, 4.0 / 16.0, 14.0 / 16.0, 6.0 / 16.0,
+        3.0 / 16.0, 11.0 / 16.0, 1.0 / 16.0, 9.0 / 16.0,
+        15.0 / 16.0, 7.0 / 16.0, 13.0 / 16.0, 5.0 / 16.0
+    );
+    let dither_x = u32(in.clip_position.x) % 4u;
+    let dither_y = u32(in.clip_position.y) % 4u;
+    let dither_val = dither_mat[dither_y * 4u + dither_x] - 0.5;
+
+    // 4. EFEITO PS1: CORES 5-BIT (Posterization) + Dithering
+    color = color + vec3<f32>(dither_val * 0.1);
+    color = floor(color * 32.0) / 32.0; // Corta para 32 tons de cor por canal
 
     return vec4<f32>(color, 1.0);
 }

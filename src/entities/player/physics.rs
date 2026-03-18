@@ -4,41 +4,24 @@ use winit::keyboard::KeyCode;
 
 pub fn update_god_mode(player: &mut Player, dt: f32) {
     let speed = 80.0 * dt;
-    let front = player.camera.get_front();
-    let right = player.camera.get_right();
-    let up = [0.0, 1.0, 0.0];
+    
+    let front = player.camera.get_front(); // Frente da mira exata
+    let right = player.camera.get_right(); // Direita exata
+    
+    // A MÁGICA DO DRONE: O "Cima" agora é relativo à sua cabeça, 
+    // ignorando completamente a gravidade ou o planeta!
+    let up = math::normalize_or_zero(math::cross(right, front)); 
+    
     let mut dir = [0.0, 0.0, 0.0];
 
-    if player.keys[KeyCode::KeyW as usize] {
-        dir[0] += front[0];
-        dir[1] += front[1];
-        dir[2] += front[2];
-    }
-    if player.keys[KeyCode::KeyS as usize] {
-        dir[0] -= front[0];
-        dir[1] -= front[1];
-        dir[2] -= front[2];
-    }
-    if player.keys[KeyCode::KeyA as usize] {
-        dir[0] += right[0];
-        dir[1] += right[1];
-        dir[2] += right[2];
-    } // Era -=
-    if player.keys[KeyCode::KeyD as usize] {
-        dir[0] -= right[0];
-        dir[1] -= right[1];
-        dir[2] -= right[2];
-    } // Era +=  
-    if player.keys[KeyCode::KeyE as usize] {
-        dir[0] += up[0];
-        dir[1] += up[1];
-        dir[2] += up[2];
-    }
-    if player.keys[KeyCode::KeyQ as usize] {
-        dir[0] -= up[0];
-        dir[1] -= up[1];
-        dir[2] -= up[2];
-    }
+    if player.keys[KeyCode::KeyW as usize] { dir[0] += front[0]; dir[1] += front[1]; dir[2] += front[2]; }
+    if player.keys[KeyCode::KeyS as usize] { dir[0] -= front[0]; dir[1] -= front[1]; dir[2] -= front[2]; }
+    
+    if player.keys[KeyCode::KeyA as usize] { dir[0] -= right[0]; dir[1] -= right[1]; dir[2] -= right[2]; }
+    if player.keys[KeyCode::KeyD as usize] { dir[0] += right[0]; dir[1] += right[1]; dir[2] += right[2]; }
+    
+    if player.keys[KeyCode::KeyE as usize] { dir[0] += up[0]; dir[1] += up[1]; dir[2] += up[2]; }
+    if player.keys[KeyCode::KeyQ as usize] { dir[0] -= up[0]; dir[1] -= up[1]; dir[2] -= up[2]; }
 
     let dir_norm = math::normalize_or_zero(dir);
     player.camera.pos[0] += dir_norm[0] * speed;
@@ -145,22 +128,32 @@ pub fn update_survival(player: &mut Player, dt: f32) {
     move_delta[1] -= dot_up * player.physics_up[1];
     move_delta[2] -= dot_up * player.physics_up[2];
 
-    // 4. MOVE AND SLIDE (AABB)
+  // 4. MOVE AND SLIDE (AABB com Step-Height para não raspar no chão)
     let mut next_pos = player.camera.pos;
-    next_pos[0] += move_delta[0];
-    if is_colliding(player, next_pos) {
-        next_pos[0] -= move_delta[0];
-    }
-    next_pos[1] += move_delta[1];
-    if is_colliding(player, next_pos) {
-        next_pos[1] -= move_delta[1];
-    }
-    next_pos[2] += move_delta[2];
-    if is_colliding(player, next_pos) {
-        next_pos[2] -= move_delta[2];
-    }
-    player.camera.pos = next_pos;
+    
+    // Elevador virtual: Levanta o teste em 10cm na direção UP da gravidade
+    let step_up = [
+        player.physics_up[0] * 0.1, 
+        player.physics_up[1] * 0.1, 
+        player.physics_up[2] * 0.1
+    ];
 
+    // Tenta mover no Eixo X
+    next_pos[0] += move_delta[0];
+    let test_x = [next_pos[0] + step_up[0], next_pos[1] + step_up[1], next_pos[2] + step_up[2]];
+    if is_colliding(player, test_x) { next_pos[0] -= move_delta[0]; } // Desliza no X
+
+    // Tenta mover no Eixo Y
+    next_pos[1] += move_delta[1];
+    let test_y = [next_pos[0] + step_up[0], next_pos[1] + step_up[1], next_pos[2] + step_up[2]];
+    if is_colliding(player, test_y) { next_pos[1] -= move_delta[1]; } // Desliza no Y
+
+    // Tenta mover no Eixo Z
+    next_pos[2] += move_delta[2];
+    let test_z = [next_pos[0] + step_up[0], next_pos[1] + step_up[1], next_pos[2] + step_up[2]];
+    if is_colliding(player, test_z) { next_pos[2] -= move_delta[2]; } // Desliza no Z
+
+    player.camera.pos = next_pos;
     // 5. GRAVIDADE E PULO
     if under_gravity {
         player.velocidade_y -= 25.0 * dt;
