@@ -7,14 +7,17 @@ edition = "2024"
 # A vanguarda gráfica de 2026
 wgpu = "28.0"
 winit = "0.30" 
-env_logger = "0.11"
-log = "0.4"
+
 pollster = "0.3" 
 bytemuck = { version = "1.16", features = ["derive"] } 
 
 # Matemática e Ruído
 noise = "0.9"
+
+# [dev-dependencies]
 sysinfo = "0.30"
+env_logger = "0.11"
+log = "0.4"
 
 [profile.dev]
 opt-level = 1
@@ -23,6 +26,8 @@ opt-level = 1
 opt-level = 3
 
 [profile.release]
-lto = "thin"
-codegen-units = 1
-opt-level = 3
+opt-level = 3        # Otimiza 100% para velocidade máxima
+lto = true           # Link Time Optimization (Otimiza o programa inteiro como um bloco só)
+codegen-units = 1    # Compila usando 1 núcleo só para otimizar melhor as conexões do código
+panic = 'abort'      # Remove o código de "tentar se recuperar de crashes" (deixa mais leve)
+strip = true         # Remove nomes de variáveis e símbolos de debug (diminui MUITO o tamanho do arquivo)

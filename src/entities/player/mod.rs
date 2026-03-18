@@ -1,3 +1,6 @@
+pub mod physics;
+
+use std::collections::HashMap;
 use crate::entities::camera::Camera;
 use winit::keyboard::KeyCode;
 
@@ -12,42 +15,55 @@ pub struct Player {
     pub active_weapon: Weapon,
     pub selected_material: u32,
     pub flashlight: bool,
-    pub freeze_time: bool, 
+    pub is_day: bool,
     pub is_shooting: bool,
-    pub cooldown: f32, 
-    keys: [bool; 255],
+    pub cooldown: f32,
+    pub velocidade_y: f32,
+    pub no_chao: bool,
+    pub physics_up: [f32; 3],
+    pub visual_up: [f32; 3],
+    pub keys: [bool; 255],
+    pub world_edits: HashMap<[i32; 3], u32>,
 }
 
 impl Player {
     pub fn new(start_pos: [f32; 3]) -> Self {
         Self {
             camera: Camera::new(start_pos),
-            mode: GameMode::God,
+            mode: GameMode::Normal,
             active_weapon: Weapon::Creator,
-            selected_material: 1, 
+            selected_material: 1,
             flashlight: false,
-            freeze_time: false,
+            is_day: true,
             is_shooting: false,
             cooldown: 0.0,
+            velocidade_y: 0.0,
+            no_chao: false,
+            physics_up: [0.0, 1.0, 0.0],
+            visual_up: [0.0, 1.0, 0.0],
             keys: [false; 255],
+            world_edits: HashMap::new(),
         }
     }
 
     pub fn handle_keyboard(&mut self, keycode: KeyCode, pressed: bool) {
         let code = keycode as usize;
         if code < 255 { self.keys[code] = pressed; }
-
         if pressed {
             match keycode {
-                KeyCode::KeyG => self.mode = match self.mode { GameMode::God => GameMode::Normal, GameMode::Normal => GameMode::God },
+                KeyCode::KeyG => {
+                    self.mode = if self.mode == GameMode::God { GameMode::Normal } else { GameMode::God };
+                    if self.mode == GameMode::God {
+                        self.camera.up = [0.0, 1.0, 0.0];
+                        self.visual_up = [0.0, 1.0, 0.0];
+                    }
+                }
                 KeyCode::KeyF => self.flashlight = !self.flashlight,
-                KeyCode::KeyN => self.freeze_time = !self.freeze_time, // Para o Sol!
-                
+                KeyCode::KeyN => self.is_day = !self.is_day,
                 KeyCode::Digit1 => { self.active_weapon = Weapon::Creator; self.selected_material = 1; }
                 KeyCode::Digit2 => { self.active_weapon = Weapon::Creator; self.selected_material = 2; }
                 KeyCode::Digit3 => { self.active_weapon = Weapon::Creator; self.selected_material = 3; }
-                KeyCode::Digit4 => { self.active_weapon = Weapon::Creator; self.selected_material = 5; } // Terra (Flutua)
-                
+                KeyCode::Digit4 => { self.active_weapon = Weapon::Creator; self.selected_material = 5; }
                 KeyCode::Digit5 => self.active_weapon = Weapon::Plasma,
                 KeyCode::Digit6 => self.active_weapon = Weapon::Bazooka,
                 _ => {}
@@ -56,33 +72,22 @@ impl Player {
     }
 
     pub fn handle_mouse_click(&mut self, pressed: bool) { self.is_shooting = pressed; }
-    pub fn handle_mouse_move(&mut self, dx: f64, dy: f64) { self.camera.mouse_move(dx, dy); }
+    pub fn handle_mouse_move(&mut self, dx: f64, dy: f64) { self.camera.mouse_move(dx, dy, self.mode == GameMode::God); }
 
     pub fn update(&mut self, dt: f32) {
         if self.cooldown > 0.0 { self.cooldown -= dt; }
-
-        let speed = 40.0 * dt;
-        let front = self.camera.get_front();
-        let right = self.camera.get_right();
-        let up = self.camera.get_up(); // Pega a inclinação da nuca
-
-        if self.keys[KeyCode::KeyW as usize] { self.camera.pos[0] += front[0] * speed; if self.mode == GameMode::God { self.camera.pos[1] += front[1] * speed; } self.camera.pos[2] += front[2] * speed; }
-        if self.keys[KeyCode::KeyS as usize] { self.camera.pos[0] -= front[0] * speed; if self.mode == GameMode::God { self.camera.pos[1] -= front[1] * speed; } self.camera.pos[2] -= front[2] * speed; }
-        if self.keys[KeyCode::KeyA as usize] { self.camera.pos[0] -= right[0] * speed; self.camera.pos[2] -= right[2] * speed; }
-        if self.keys[KeyCode::KeyD as usize] { self.camera.pos[0] += right[0] * speed; self.camera.pos[2] += right[2] * speed; }
-        
         if self.mode == GameMode::God {
-            // Sobe/Desce relativo à visão da câmera!
-            if self.keys[KeyCode::KeyE as usize] { self.camera.pos[0] += up[0] * speed; self.camera.pos[1] += up[1] * speed; self.camera.pos[2] += up[2] * speed; }
-            if self.keys[KeyCode::KeyQ as usize] { self.camera.pos[0] -= up[0] * speed; self.camera.pos[1] -= up[1] * speed; self.camera.pos[2] -= up[2] * speed; }
+            physics::update_god_mode(self, dt);
+        } else {
+            physics::update_survival(self, dt);
         }
     }
 
     pub fn get_shader_action(&mut self) -> u32 {
         if self.is_shooting {
             match self.active_weapon {
-                Weapon::Creator => self.selected_material, 
-                Weapon::Plasma => 8, 
+                Weapon::Creator => self.selected_material,
+                Weapon::Plasma => 8,
                 Weapon::Bazooka => { if self.cooldown <= 0.0 { self.cooldown = 0.3; 9 } else { 0 } }
             }
         } else { 0 }

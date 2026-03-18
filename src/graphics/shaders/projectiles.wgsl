@@ -1,21 +1,27 @@
 // Lida EXCLUSIVAMENTE com a balística, voo e impacto de detritos/mísseis
 
 fn explode(center: vec3<f32>, my_id: u32, radius: f32) {
-    let cx = u32(clamp(center.x, 0.0, 511.0)); let cy = u32(clamp(center.y, 0.0, 127.0)); let cz = u32(clamp(center.z, 0.0, 511.0));
+
+let cx = u32(clamp(center.x, 0.0, 255.0)); let cy = u32(clamp(center.y, 0.0, 255.0)); let cz = u32(clamp(center.z, 0.0, 255.0));
+
     var hit_mat_sample = 8u; 
     let r_int = u32(ceil(radius));
     
-    for (var x = max(1u, cx - r_int); x < min(511u, cx + r_int); x++) {
-        for (var y = max(1u, cy - r_int); y < min(127u, cy + r_int); y++) {
-            for (var z = max(1u, cz - r_int); z < min(511u, cz + r_int); z++) {
+for (var x = max(1u, cx - r_int); x < min(255u, cx + r_int); x++) {
+        for (var y = max(1u, cy - r_int); y < min(255u, cy + r_int); y++) {
+            for (var z = max(1u, cz - r_int); z < min(255u, cz + r_int); z++) {
+
+
                 let dist = length(vec3<f32>(f32(x), f32(y), f32(z)) - center);
                 let idx = get_index(x, y, z);
                 let v = world.data[idx];
                 
-                if (dist < radius * 0.7 && v != 4u) { 
+
+                // Núcleo de ferro protegido
+if (dist < radius * 0.7 && v != 10u) {
                     world.data[idx] = 0u; 
                     if (v != 0u && v < 100u) { hit_mat_sample = v; }
-                } else if (dist < radius && v != 0u && v != 4u && v < 100u) {
+                } else if (dist < radius && v != 0u && v != 10u && v < 100u) {
                     world.data[idx] = v + 100u; 
                     macro_world.data[get_macro_index(x, y, z)] = 1u;
                 }

@@ -24,13 +24,15 @@ fn process_player_weapons(index: u32, x: u32, y: u32, z: u32, voxel: u32) {
     let p = vec3<f32>(f32(x), f32(y), f32(z));
 
     // Arma 5: Raio de Plasma (Laser Instantâneo - Cava cilindros)
-    if (action == 8u) { 
+if (action == 8u) { 
         let p_to_cam = p - uniforms.camera_pos; 
+
+        
         let proj = dot(p_to_cam, uniforms.camera_front); 
         if (proj > 2.0 && proj < 40.0 && length(p - (uniforms.camera_pos + uniforms.camera_front * proj)) < 2.0) { 
-            if (voxel != 4u) { world.data[index] = 0u; } 
+           if (voxel != 10u) { world.data[index] = 0u; }// núcleo blindado!
         }
-    } 
+    }
     // Armas 1 a 4: Creator (Pincel de Criação Mágica - Pinta blocos/fluidos direto no ar)
     else if (action > 0u && action < 8u && action != 4u && action != 6u) {
         // Pinta num raio de 3 blocos à uma distância de 10 blocos da câmera

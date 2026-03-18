@@ -1,15 +1,17 @@
 use wgpu::{Device, TextureFormat, Buffer};
 
-// 1. Shaders mapeados no topo do arquivo para máxima organização
+// Shaders mapeados no topo do arquivo
 const SHADER_RENDER: &str = include_str!("shaders/render.wgsl");
 const SHADER_CORE: &str = include_str!("shaders/physics_core.wgsl");
 const SHADER_FLUIDS: &str = include_str!("shaders/physics_fluids.wgsl");
 const SHADER_PROJECTILES: &str = include_str!("shaders/projectiles.wgsl");
 const SHADER_WEAPONS: &str = include_str!("shaders/weapons.wgsl");
+const SHADER_WORLD_GEN: &str = include_str!("shaders/world_gen.wgsl"); // NOVO!
 
 pub struct GpuPipelines {
     pub render_pipeline: wgpu::RenderPipeline,
     pub compute_pipeline: wgpu::ComputePipeline,
+    pub world_gen_pipeline: wgpu::ComputePipeline, // NOVO!
     pub render_bind_group: wgpu::BindGroup,
     pub compute_bind_group: wgpu::BindGroup,
 }
@@ -44,7 +46,7 @@ impl GpuPipelines {
             label: Some("Compute BGL"),
         });
 
-        // --- BIND GROUPS (Conectando os buffers reais) ---
+        // --- BIND GROUPS ---
         let render_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &render_bgl,
             entries: &[
@@ -67,23 +69,21 @@ impl GpuPipelines {
             label: Some("Compute Bind Group"),
         });
 
-      // --- CARREGAMENTO DE SHADERS ---
+        // --- CARREGAMENTO DE SHADERS ---
         let render_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Render Shader"),
             source: wgpu::ShaderSource::Wgsl(SHADER_RENDER.into()),
         });
 
-        // Concatenando os módulos (O Core vai primeiro pois contém os Structs base)
-        let compute_shader_source = format!(
-            "{}\n{}\n{}\n{}",
-            SHADER_CORE,
-            SHADER_FLUIDS,
-            SHADER_PROJECTILES,
-            SHADER_WEAPONS
-        );
+        let compute_shader_source = format!("{}\n{}\n{}\n{}", SHADER_CORE, SHADER_FLUIDS, SHADER_PROJECTILES, SHADER_WEAPONS);
         let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Compute Shader"),
             source: wgpu::ShaderSource::Wgsl(compute_shader_source.into()),
+        });
+        
+        let world_gen_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("World Gen Shader"),
+            source: wgpu::ShaderSource::Wgsl(SHADER_WORLD_GEN.into()),
         });
 
         // --- PIPELINES ---
@@ -96,27 +96,10 @@ impl GpuPipelines {
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &render_shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &render_shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(format.into())],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: None,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview_mask: std::num::NonZeroU32::new(0),
-            cache: None,
+            vertex: wgpu::VertexState { module: &render_shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[] },
+            fragment: Some(wgpu::FragmentState { module: &render_shader, entry_point: Some("fs_main"), compilation_options: Default::default(), targets: &[Some(format.into())] }),
+            primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleList, cull_mode: None, ..Default::default() },
+            depth_stencil: None, multisample: wgpu::MultisampleState::default(), multiview_mask: std::num::NonZeroU32::new(0), cache: None,
         });
 
         let compute_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -133,10 +116,21 @@ impl GpuPipelines {
             compilation_options: Default::default(),
             cache: None,
         });
+        
+        // PIPELINE DE GERAÇÃO DO MUNDO
+        let world_gen_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("World Gen Pipeline"),
+            layout: Some(&compute_pipeline_layout), // Usa a mesma estrutura de layout da física
+            module: &world_gen_shader,
+            entry_point: Some("main_gen"),
+            compilation_options: Default::default(),
+            cache: None,
+        });
 
         Self {
             render_pipeline,
             compute_pipeline,
+            world_gen_pipeline, // Mapeado!
             render_bind_group,
             compute_bind_group,
         }

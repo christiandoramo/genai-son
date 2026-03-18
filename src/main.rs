@@ -1,4 +1,3 @@
-mod world;
 mod entities;
 mod graphics;
 mod engine;
