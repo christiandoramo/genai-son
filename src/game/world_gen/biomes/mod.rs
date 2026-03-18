@@ -1,0 +1,2 @@
+pub const BIOME_DESERT_HUMIDITY: f32 = 0.2;
+pub const BIOME_MOUNTAIN_HEIGHT: f32 = 60.0;

@@ -1,0 +1,48 @@
+fn hash(p: vec3<f32>) -> f32 {
+    var p3 = fract(p * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z) * 2.0 - 1.0;
+}
+
+fn noise(x: vec3<f32>) -> f32 {
+    let p = floor(x); let f = fract(x);
+    let u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash(p + vec3<f32>(0.0,0.0,0.0)), hash(p + vec3<f32>(1.0,0.0,0.0)), u.x),
+                   mix(hash(p + vec3<f32>(0.0,1.0,0.0)), hash(p + vec3<f32>(1.0,1.0,0.0)), u.x), u.y),
+               mix(mix(hash(p + vec3<f32>(0.0,0.0,1.0)), hash(p + vec3<f32>(1.0,0.0,1.0)), u.x),
+                   mix(hash(p + vec3<f32>(0.0,1.0,1.0)), hash(p + vec3<f32>(1.0,1.0,1.0)), u.x), u.y), u.z);
+}
+
+fn get_index(x: u32, y: u32, z: u32) -> u32 {
+    return x + y * 256u + z * 65536u;
+}
+
+fn get_macro_index(x: u32, y: u32, z: u32) -> u32 {
+    let mx = x >> 3u; let my = y >> 3u; let mz = z >> 3u;
+    return mx + my * 32u + mz * 1024u;
+}
+
+fn get_planet_gravity_dir(pos: vec3<f32>) -> vec3<i32> {
+    let rel = pos - vec3<f32>(128.0);
+    let a = abs(rel);
+    if (a.x >= a.y && a.x >= a.z) { return vec3<i32>(i32(-sign(rel.x)), 0, 0); }
+    if (a.y >= a.x && a.y >= a.z) { return vec3<i32>(0, i32(-sign(rel.y)), 0); }
+    return vec3<i32>(0, 0, i32(-sign(rel.z)));
+}
+
+fn get_voxel_color(voxel_id: u32) -> vec3<f32> {
+    return get_biome_color(voxel_id, 0.0); // Delega para o biomes.wgsl
+}
+
+fn is_valid_i(p: vec3<i32>) -> bool {
+    return p.x >= 0 && p.x < 256 && p.y >= 0 && p.y < 256 && p.z >= 0 && p.z < 256;
+}
+
+
+fn get_random_side(pos: vec3<u32>, seed: u32) -> vec3<u32> {
+    let side_offsets = array<vec3<i32>, 4>(
+        vec3<i32>(1, 0, 0), vec3<i32>(-1, 0, 0), 
+        vec3<i32>(0, 0, 1), vec3<i32>(0, 0, -1)
+    );
+    return vec3<u32>(vec3<i32>(pos) + side_offsets[seed % 4u]);
+}

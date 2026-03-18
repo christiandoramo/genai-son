@@ -1,77 +1,79 @@
-mod entities;
-mod graphics;
 mod engine;
+mod game;
 
+use crate::engine::state::State;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
-    event::{WindowEvent, DeviceEvent, ElementState},
+    event::{DeviceEvent, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    window::{Window, WindowId, CursorGrabMode},
-    keyboard::PhysicalKey,
+    window::{Window, WindowId},
 };
-use engine::State;
 
 #[derive(Default)]
-struct App<'a> { state: Option<State<'a>> }
+struct App<'a> {
+    state: Option<State<'a>>,
+}
 
 impl<'a> ApplicationHandler for App<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.state.is_none() {
-            let window_attributes = Window::default_attributes()
-                .with_title("GenAI Son: Custom Voxel Engine")
-                .with_inner_size(winit::dpi::PhysicalSize::new(1280, 720));
-            
-            let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
-            let _ = window.set_cursor_grab(CursorGrabMode::Confined).or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked));
-            window.set_cursor_visible(false);
-
-            self.state = Some(pollster::block_on(State::new(window)));
-        }
+        let window = Arc::new(
+            event_loop
+                .create_window(
+                    Window::default_attributes().with_title("GenAI Son: Voxel Revolution"),
+                )
+                .unwrap(),
+        );
+        self.state = Some(pollster::block_on(State::new(window)));
     }
 
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: winit::event::DeviceId, event: DeviceEvent) {
-        if let Some(state) = &mut self.state {
-            if let DeviceEvent::MouseMotion { delta } = event {
-                state.player.handle_mouse_move(delta.0, delta.1);
-            }
-        }
-    }
-
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
-        let state = match &mut self.state { Some(state) => state, None => return };
-
+    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        let state = self.state.as_mut().unwrap();
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(physical_size) => state.resize(physical_size),
+            WindowEvent::CloseRequested => _event_loop.exit(),
+            WindowEvent::Resized(new_size) => state.device.resize(new_size),
+
+            // TECLADO: Alimenta state.inputs.keyboard
             WindowEvent::KeyboardInput { event, .. } => {
-                if let PhysicalKey::Code(keycode) = event.physical_key {
-                    if keycode == winit::keyboard::KeyCode::Escape { event_loop.exit(); }
-                    state.player.handle_keyboard(keycode, event.state == ElementState::Pressed);
+                if let winit::keyboard::PhysicalKey::Code(key) = event.physical_key {
+                    state
+                        .inputs
+                        .keyboard
+                        .update_key(key, event.state.is_pressed());
                 }
             }
-            WindowEvent::MouseInput { state: mouse_state, button: winit::event::MouseButton::Left, .. } => {
-                state.player.handle_mouse_click(mouse_state == ElementState::Pressed);
+
+            // CLIQUE DO MOUSE: Alimenta state.inputs.mouse
+            WindowEvent::MouseInput {
+                state: m_state,
+                button: winit::event::MouseButton::Left,
+                ..
+            } => {
+                state.inputs.mouse.left_pressed = m_state.is_pressed();
+                state.player.is_shooting = m_state.is_pressed(); // Sincroniza com o player
             }
+
             WindowEvent::RedrawRequested => {
-                match state.render() {
-                    Ok(_) => {}
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.gpu.size),
-                    Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
-                    Err(e) => eprintln!("{:?}", e),
-                }
+                state.update();
+                let _ = state.render();
+                state.window.request_redraw();
             }
             _ => {}
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(state) = &self.state { state.window.request_redraw(); }
+    fn device_event(&mut self, _: &ActiveEventLoop, _: winit::event::DeviceId, event: DeviceEvent) {
+        if let DeviceEvent::MouseMotion { delta } = event {
+            if let Some(state) = &mut self.state {
+                // ACUMULA O DELTA: O update() do state.rs vai consumir isso
+                state.inputs.mouse.delta.0 += delta.0;
+                state.inputs.mouse.delta.1 += delta.1;
+            }
+        }
     }
 }
 
-pub fn main() {
-    env_logger::init();
+fn main() {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App::default();
