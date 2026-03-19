@@ -41,13 +41,14 @@ impl<'a> State<'a> {
         let vertex = include_str!("../shaders/include/vertex.wgsl");
 
         let render_src = format!(
-            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}", // <--- Aumentado para 8 slots
+            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
             constants,
             structs,
-            biome_lib, // Biomes antes de Math
+            biome_lib,
             math,
-            vertex, // <--- INJETANDO O VS_MAIN AQUI
+            vertex,
             include_str!("../shaders/raytracer/dda.wgsl"),
+            include_str!("../shaders/raytracer/lighting.wgsl"), // Faltava isso na sua refatoração!!
             include_str!("../shaders/post_process/psx.wgsl"),
             include_str!("../shaders/render_main.wgsl")
         );
@@ -121,6 +122,16 @@ impl<'a> State<'a> {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT | wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                     label: Some("Main Bind Group Layout"),
                 });
@@ -139,6 +150,10 @@ impl<'a> State<'a> {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: storage.macro_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: storage.projectile_buffer.as_entire_binding(),
                 },
             ],
             label: None,
@@ -255,13 +270,21 @@ impl<'a> State<'a> {
             pad2: f32,
         }
 
+        // Transição do Dia/Noite suave baseada em física pura:
+        let target_time = if self.player.is_day {
+            0.0
+        } else {
+            std::f32::consts::PI
+        };
+        self.time.time_of_day += (target_time - self.time.time_of_day) * self.time.delta * 4.0;
+
         let data = UniformData {
             res: [
                 self.device.size.width as f32,
                 self.device.size.height as f32,
             ],
-            time: self.time.elapsed,
-            action: self.player.active_weapon as u32, // Agora enviando o ID correto da arma
+            time: self.time.time_of_day, // Usa o suave agora
+            action: self.player.active_weapon as u32,
             cam_pos: self.player.camera.pos,
             flash: if self.player.flashlight { 1 } else { 0 },
             cam_front: self.player.camera.get_front(),
@@ -269,10 +292,34 @@ impl<'a> State<'a> {
             cam_up: self.player.visual_up,
             pad2: 0.0,
         };
-
+        
         self.device
             .queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[data]));
+
+        // Envia os Mísseis da CPU para a Placa de Vídeo desenhar
+        let mut proj_data = [crate::engine::voxel::storage::Projectile {
+            pos: [0.0; 3],
+            is_active: 0,
+            vel: [0.0; 3],
+            p_type: 0,
+            mat_id: 0,
+            pad1: 0,
+            pad2: 0,
+            pad3: 0,
+        }; 64];
+        for (i, p) in self.player.active_projectiles.iter().enumerate().take(64) {
+            proj_data[i] = *p;
+        }
+        self.device.queue.write_buffer(
+            &self.storage.projectile_buffer,
+            0,
+            bytemuck::cast_slice(&proj_data),
+        );
+
+        // Limpa os estados de 'Pressionado' que causam flutuações e pulos infinitos
+        self.inputs.keyboard.tick();
+
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -292,7 +339,7 @@ impl<'a> State<'a> {
             });
             cpass.set_pipeline(&self.physics_pipeline);
             cpass.set_bind_group(0, &self.bind_group, &[]);
-            cpass.dispatch_workgroups(32, 32, 32);
+            cpass.dispatch_workgroups(64, 64, 64);
         }
 
         {

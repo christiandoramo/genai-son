@@ -15,7 +15,9 @@ fn update_god_mode(player: &mut Player, input: &InputState, dt: f32) {
     let speed = 80.0 * dt;
     let front = player.camera.get_front();
     let right = player.camera.get_right();
-    let up = [0.0, 1.0, 0.0];
+
+    let up = normalize_or_zero(cross(right, front)); // Devolve 100% de voo livre como um Drone 3D!
+
     let mut dir = [0.0, 0.0, 0.0];
 
     if input.is_pressed(KeyCode::KeyW) {
@@ -210,7 +212,12 @@ fn update_survival(player: &mut Player, input: &InputState, dt: f32) {
         player.on_ground = false;
     }
 
-    if input.is_pressed(KeyCode::Space) && player.on_ground {
+    // if input.is_pressed(KeyCode::Space) && player.on_ground {
+    //     player.velocity_y = 10.0;
+    //     player.on_ground = false;
+    // }
+
+    if input.just_pressed(KeyCode::Space) && player.on_ground {
         player.velocity_y = 10.0;
         player.on_ground = false;
     }
@@ -274,12 +281,15 @@ mod gpu_noise_mirror {
             return false;
         }
         let dir = crate::game::player::math_util::normalize_or_zero([px, py, pz]);
+
         let cont = noise_3d(dir[0] * 1.2, dir[1] * 1.2, dir[2] * 1.2);
+        let colinas = noise_3d(dir[0] * 3.0, dir[1] * 3.0, dir[2] * 3.0).max(0.0);
+        let detalhes = noise_3d(dir[0] * 6.0, dir[1] * 6.0, dir[2] * 6.0).max(0.0);
         let mut h = 40.0 + (cont * 10.0);
         if cont > -0.1 {
-            h += noise_3d(dir[0] * 3.0, dir[1] * 3.0, dir[2] * 3.0).max(0.0) * 12.0
-                + noise_3d(dir[0] * 6.0, dir[1] * 6.0, dir[2] * 6.0).max(0.0) * 4.0;
+            h += colinas * 12.0 + detalhes * 4.0; // O detalhes * 4.0 estava na CPU mas foi apagado na GPU!
         }
+
         if d > (h / 2.0).round() * 2.0 {
             return false;
         }

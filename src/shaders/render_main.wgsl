@@ -1,6 +1,7 @@
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var<storage, read_write> world: WorldBuffer;
 @group(0) @binding(2) var<storage, read_write> macro_world: WorldBuffer;
+@group(0) @binding(3) var<storage, read_write> projectiles: array<Projectile>;
 
 @fragment
 fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
@@ -19,27 +20,51 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     let rd = normalize(forward + uv.x * right + uv.y * up);
 
     // Executa o Raycast
-    let hit = cast_ray(ro, rd, 500.0);
+       let hit = cast_ray(ro, rd, 500.0);
+    
+    // Céu e Ciclo
+    let sky_day = vec3<f32>(0.3, 0.5, 0.8);
+    let sky_night = vec3<f32>(0.01, 0.01, 0.02);
+    let sky_col = mix(sky_day, sky_night, clamp(uniforms.time / 3.14159, 0.0, 1.0));
     
     var color: vec3<f32>;
+    var final_dist = 9999.0;
     
     if (hit.hit) {
-        // Cálculo simples de luz (Difusa + Sol)
-        let sun_dir = normalize(vec3<f32>(sin(uniforms.time), cos(uniforms.time), 0.5));
-        let diffuse = max(dot(get_normal(hit.side), sun_dir), 0.1);
-        
-        let base_color = get_voxel_color(hit.voxel_id);
-        color = base_color * diffuse;
-        
-        // Névoa de Profundidade
-        let fog = clamp(hit.dist / 400.0, 0.0, 1.0);
-        color = mix(color, vec3<f32>(0.01, 0.01, 0.02), fog);
+        color = calculate_lighting(hit, ro, rd, uniforms.time, sky_col);
+        final_dist = hit.dist;
     } else {
-        color = vec3<f32>(0.01, 0.01, 0.02); // Cor do Espaço
+        color = sky_col;
     }
 
-    // Aplica o Filtro PSX no final
-    let final_color = apply_psx_effects(color, frag_coord.xy);
+    // Míssil da Bazuca visível e ardente
+    var proj_hit = false; var proj_dist = 9999.0;
+    for (var i = 0u; i < 64u; i++) {
+        if (projectiles[i].is_active == 1u) {
+            let oc = ro - projectiles[i].pos;
+            let b = dot(oc, rd); 
+            let c = dot(oc, oc) - 0.3 * 0.3; 
+            let h_val = b * b - c;
+            if (h_val > 0.0) {
+                let t = -b - sqrt(h_val);
+                if (t > 0.0 && t < proj_dist) { proj_dist = t; proj_hit = true; }
+            }
+        }
+    }
+    if (proj_hit && proj_dist < final_dist) {
+        color = vec3<f32>(1.0, 0.4, 0.1); // Míssil Laranja Brilhante
+        final_dist = proj_dist;
+    }
+
+    // Névoa
+    let fog = clamp(final_dist / 400.0, 0.0, 1.0);
+    color = mix(color, sky_col, fog);
+
+    var final_color = apply_psx_effects(color, frag_coord.xy);
+    
+    // Crosshair (Mira elegante no centro da tela)
+    let center_dist = max(abs(frag_coord.x - uniforms.resolution.x * 0.5), abs(frag_coord.y - uniforms.resolution.y * 0.5));
+    if (center_dist < 4.0 && center_dist > 1.0) { final_color = mix(final_color, vec3<f32>(1.0, 1.0, 1.0), 0.8); }
     
     return vec4<f32>(final_color, 1.0);
 }

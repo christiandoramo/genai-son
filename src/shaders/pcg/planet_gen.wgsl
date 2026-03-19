@@ -29,14 +29,17 @@ fn main_gen(@builtin(global_invocation_id) id: vec3<u32>) {
 fn calculate_biome_material(dist: f32, dir: vec3<f32>, local_pos: vec3<f32>) -> u32 {
     let cont = noise(dir * 1.2);
     let colinas = max(noise(dir * 3.0), 0.0);
+    let detalhes = max(noise(dir * 6.0), 0.0); // <--- Faltou essa linha mágica!
     
     var h = 40.0 + (cont * 10.0);
+
     if (cont > -0.1) {
         h += colinas * 12.0;
+        h += detalhes * 4.0; // Agora o compilador sabe o que é "detalhes"!
     }
 
     let superficie = round(h / 2.0) * 2.0;
-    
+        
     if (dist <= superficie) {
         let profundidade = superficie - dist;
         

@@ -46,3 +46,11 @@ fn get_random_side(pos: vec3<u32>, seed: u32) -> vec3<u32> {
     );
     return vec3<u32>(vec3<i32>(pos) + side_offsets[seed % 4u]);
 }
+
+fn get_orthogonal(g: vec3<i32>, index: u32) -> vec3<i32> {
+    var u = vec3<i32>(0); var v = vec3<i32>(0);
+    if (g.x != 0) { u = vec3<i32>(0,1,0); v = vec3<i32>(0,0,1); }
+    else if (g.y != 0) { u = vec3<i32>(1,0,0); v = vec3<i32>(0,0,1); }
+    else { u = vec3<i32>(1,0,0); v = vec3<i32>(0,1,0); }
+    if (index == 0u) { return u; } if (index == 1u) { return -u; } if (index == 2u) { return v; } return -v;
+}

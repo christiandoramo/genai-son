@@ -3,6 +3,7 @@ pub mod controller;
 pub mod math_util;
 pub mod physics;
 
+use crate::engine::voxel::storage::Projectile;
 use crate::game::player::camera::Camera;
 use std::collections::HashMap;
 
@@ -35,6 +36,7 @@ pub struct Player {
     pub visual_up: [f32; 3],
     // Cache de edições locais para colisão (Sincronizado com o World)
     pub world_edits: HashMap<[i32; 3], u32>,
+    pub active_projectiles: Vec<Projectile>,
 }
 
 impl Player {
@@ -53,6 +55,7 @@ impl Player {
             physics_up: [0.0, 1.0, 0.0],
             visual_up: [0.0, 1.0, 0.0],
             world_edits: HashMap::new(),
+            active_projectiles: Vec::new(),
         }
     }
 }

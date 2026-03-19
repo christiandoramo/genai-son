@@ -1,4 +1,5 @@
-fn calculate_lighting(hit: RayHit, ro: vec3<f32>, rd: vec3<f32>, time: f32) -> vec3<f32> {
+fn calculate_lighting(hit: RayHit, ro: vec3<f32>, rd: vec3<f32>, time: f32, sky_color: vec3<f32>) -> vec3<f32> {
+        
     var base_color = get_biome_color(hit.voxel_id, hit.dist);
     let normal = get_normal(hit.side);
     
@@ -29,8 +30,8 @@ fn calculate_lighting(hit: RayHit, ro: vec3<f32>, rd: vec3<f32>, time: f32) -> v
     }
 
     // 4. FOG DE DISTÂNCIA (Nostalgia N64)
-    let fog_factor = clamp(hit.dist / 250.0, 0.0, 1.0);
-    let sky_color = vec3<f32>(0.01, 0.01, 0.02); // Espaço profundo
+    // let fog_factor = clamp(hit.dist / 250.0, 0.0, 1.0);
+    // let sky_color = vec3<f32>(0.01, 0.01, 0.02); // Espaço profundo
     
-    return mix(final_light, sky_color, fog_factor);
+    return final_light;// mix(final_light, sky_color, fog_factor);
 }
