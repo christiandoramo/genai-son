@@ -1,3 +1,8 @@
+#define_import_path physics_sand
+#import globals::{world}
+#import constants::{MAT_AIR, MAT_SAND}
+#import math::{get_planet_gravity_dir, is_valid, get_index, get_orthogonal, move_voxel}
+
 fn simulate_sand(idx: u32, pos: vec3<u32>, seed: u32) {
     let g_dir = get_planet_gravity_dir(vec3<f32>(pos));
     let down = vec3<u32>(vec3<i32>(pos) + g_dir);

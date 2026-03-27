@@ -1,3 +1,10 @@
+#define_import_path lighting
+#import globals::{uniforms}
+#import constants::{MAT_WATER, MAT_MAGMA}
+#import biomes::{get_biome_color}
+#import math::{get_normal}
+#import dda::{RayHit}
+
 fn calculate_lighting(hit: RayHit, ro: vec3<f32>, rd: vec3<f32>, time: f32, sky_color: vec3<f32>) -> vec3<f32> {
         
     var base_color = get_biome_color(hit.voxel_id, hit.dist);

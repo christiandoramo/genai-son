@@ -1,3 +1,5 @@
+#define_import_path structs
+
 struct Uniforms {
     resolution: vec2<f32>,
     time: f32,

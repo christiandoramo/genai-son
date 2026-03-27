@@ -1,3 +1,8 @@
+#define_import_path physics_dirt
+#import globals::{world}
+#import constants::{MAT_AIR, MAT_GAS, MAT_DIRT}
+#import math::{get_planet_gravity_dir, is_valid, get_index, move_voxel}
+
 fn simulate_dirt(idx: u32, pos: vec3<u32>, seed: u32) {
     let g_dir = get_planet_gravity_dir(vec3<f32>(pos));
     let down = vec3<u32>(vec3<i32>(pos) + g_dir);

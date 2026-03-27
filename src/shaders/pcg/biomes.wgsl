@@ -1,3 +1,5 @@
+#define_import_path biomes
+
 fn get_biome_color(mat_id: u32, dist: f32) -> vec3<f32> {
     switch(mat_id) {
         case 1u: { return vec3<f32>(0.9, 0.8, 0.2); } // Areia

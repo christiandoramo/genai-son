@@ -1,7 +1,7 @@
-// Função para checar se um voxel é "passável" (Ar ou Gás para líquidos)
-fn is_free(v: u32) -> bool {
-    return v == MAT_AIR || v == MAT_GAS;
-}
+#define_import_path physics_fluids
+#import globals::{world}
+#import constants::{MAT_AIR, MAT_GAS}
+#import math::{get_planet_gravity_dir, is_valid, get_index, move_voxel, is_free}
 
 // SIMULAÇÃO DE LÍQUIDOS (Água e Magma)
 fn simulate_liquid(idx: u32, pos: vec3<u32>, seed: u32, mat_id: u32, viscosity: u32) {

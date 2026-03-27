@@ -1,3 +1,5 @@
+#define_import_path psx
+
 fn apply_psx_effects(color: vec3<f32>, frag_coord: vec2<f32>) -> vec3<f32> {
     // 1. Bayer Dithering 4x4
     let dither_mat = array<f32, 16>(

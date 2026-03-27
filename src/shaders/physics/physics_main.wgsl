@@ -1,6 +1,10 @@
-@group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var<storage, read_write> world: WorldBuffer;
-@group(0) @binding(2) var<storage, read_write> macro_world: WorldBuffer;
+#import globals::{uniforms, world, macro_world}
+#import constants::{MAT_AIR, MAT_SAND, MAT_WATER, MAT_MAGMA, MAT_GAS, MAT_DIRT}
+#import math::{is_valid, get_index}
+#import physics_sand::{simulate_sand}
+#import physics_fluids::{simulate_liquid}
+#import physics_gas::{simulate_gas}
+#import physics_dirt::{simulate_dirt}
 
 @compute @workgroup_size(4, 4, 4)
 fn cp_main(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -23,14 +27,4 @@ fn cp_main(@builtin(global_invocation_id) id: vec3<u32>) {
     } else if (voxel == MAT_DIRT) {
         simulate_dirt(idx, id, seed);
     }
-}
-
-fn move_voxel(from_idx: u32, to_idx: u32, tx: u32, ty: u32, tz: u32, mat: u32) {
-    world.data[from_idx] = MAT_AIR;
-    world.data[to_idx] = mat;
-    macro_world.data[get_macro_index(tx, ty, tz)] = 1u;
-}
-
-fn is_valid(x: u32, y: u32, z: u32) -> bool {
-    return x > 0u && x < 255u && y > 0u && y < 255u && z > 0u && z < 255u;
 }

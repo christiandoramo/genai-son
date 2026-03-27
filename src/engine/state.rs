@@ -7,10 +7,27 @@ use crate::game::player::Player;
 use crate::game::player::controller::handle_input;
 use crate::game::player::physics::update_player;
 use crate::game::world_gen::WorldGenerator;
+use naga_oil::compose::{
+    ComposableModuleDescriptor, Composer, NagaModuleDescriptor, ShaderLanguage,
+};
 use std::sync::Arc;
 use winit::window::Window;
 
+// 1. A FUNÇÃO MÁGICA: Converte a inteligência do naga_oil em WGSL puro que o wgpu 28.0 aceita
+fn compile_naga_to_wgsl(module: &wgpu::naga::Module) -> String {
+    let info = wgpu::naga::valid::Validator::new(
+        wgpu::naga::valid::ValidationFlags::all(),
+        wgpu::naga::valid::Capabilities::all(),
+    ).validate(module).expect("Erro crítico de validação matemática no naga_oil");
+
+    wgpu::naga::back::wgsl::write_string(
+        module,
+        &info,
+        wgpu::naga::back::wgsl::WriterFlags::empty()
+    ).expect("Falha ao converter o módulo Naga de volta para WGSL")
+}
 pub struct State<'a> {
+    // ... (suas definições de struct continuam iguais)
     pub device: GraphicsDevice<'a>,
     pub storage: VoxelStorage,
     pub window: Arc<Window>,
@@ -26,69 +43,96 @@ pub struct State<'a> {
 
 impl<'a> State<'a> {
     pub async fn new(window: Arc<Window>) -> Self {
+        // ... (sua inicialização do device, storage, player, etc continua igual)
         let device = GraphicsDevice::new(window.clone()).await;
         let storage = VoxelStorage::new(&device.device);
-        let player = Player::new([128.0, 200.0, 128.0]);
+        let player = Player::new([128.0, 220.0, 128.0]);
         let inputs = InputController::new();
         let time = TimeState::new();
 
-        // --- CARREGAMENTO E CONCATENAÇÃO DE SHADERS ---
-        // (Simula o #include lendo os arquivos do disco)
-        let constants = include_str!("../shaders/include/constant.wgsl");
-        let structs = include_str!("../shaders/include/struct.wgsl");
-        let math = include_str!("../shaders/include/math.wgsl");
-        let biome_lib = include_str!("../shaders/pcg/biomes.wgsl");
-        let vertex = include_str!("../shaders/include/vertex.wgsl");
+        let mut composer = Composer::default();
 
-        let render_src = format!(
-            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
-            constants,
-            structs,
-            biome_lib,
-            math,
-            vertex,
-            include_str!("../shaders/raytracer/dda.wgsl"),
-            include_str!("../shaders/raytracer/lighting.wgsl"), // Faltava isso na sua refatoração!!
-            include_str!("../shaders/post_process/psx.wgsl"),
-            include_str!("../shaders/render_main.wgsl")
-        );
+        let modules = vec![
+            ("constants", include_str!("../shaders/include/constant.wgsl")),
+            ("structs", include_str!("../shaders/include/struct.wgsl")),
+            ("globals", include_str!("../shaders/include/globals.wgsl")),
+            ("biomes", include_str!("../shaders/pcg/biomes.wgsl")),
+            ("math", include_str!("../shaders/include/math.wgsl")),
+            ("dda", include_str!("../shaders/raytracer/dda.wgsl")),
+            ("lighting", include_str!("../shaders/raytracer/lighting.wgsl")),
+            ("psx", include_str!("../shaders/post_process/psx.wgsl")),
+            ("physics_sand", include_str!("../shaders/physics/sand.wgsl")),
+            ("physics_fluids", include_str!("../shaders/physics/fluids.wgsl")),
+            ("physics_dirt", include_str!("../shaders/physics/dirt.wgsl")),
+            ("physics_gas", include_str!("../shaders/physics/gas.wgsl")),
+        ];
 
-        let physics_src = format!(
-            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
-            constants,
-            structs,
-            biome_lib,
-            math,
-            include_str!("../shaders/physics/sand.wgsl"),
-            include_str!("../shaders/physics/fluids.wgsl"),
-            include_str!("../shaders/physics/dirt.wgsl"),
-            include_str!("../shaders/physics/physics_main.wgsl") // Dispatcher
-        );
+        for (name, source) in modules {
+            composer
+                .add_composable_module(ComposableModuleDescriptor {
+                    source,
+                    file_path: name,
+                    language: ShaderLanguage::Wgsl,
+                    as_name: None,
+                    ..Default::default()
+                })
+                .expect(&format!("Erro de sintaxe no módulo WGSL: {}", name));
+        }
 
-        let gen_src = format!(
-            "{}\n{}\n{}\n{}\n{}",
-            constants,
-            structs,
-            math,
-            biome_lib, // Bioma deve vir antes do planet_gen
-            include_str!("../shaders/pcg/planet_gen.wgsl")
-        );
+        let render_naga = composer
+            .make_naga_module(NagaModuleDescriptor {
+                source: include_str!("../shaders/render_main.wgsl"),
+                file_path: "render_main.wgsl",
+                ..Default::default()
+            })
+            .unwrap();
 
-        // --- UNIFORM SETUP ---
+        let physics_naga = composer
+            .make_naga_module(NagaModuleDescriptor {
+                source: include_str!("../shaders/physics/physics_main.wgsl"),
+                file_path: "physics_main.wgsl",
+                ..Default::default()
+            })
+            .unwrap();
+
+        let gen_naga = composer
+            .make_naga_module(NagaModuleDescriptor {
+                source: include_str!("../shaders/pcg/planet_gen.wgsl"),
+                file_path: "planet_gen.wgsl",
+                ..Default::default()
+            })
+            .unwrap();
+
+        // 2. A MUDANÇA PRINCIPAL: Usando a função para injetar a string pura validada
+        let render_mod = device.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Render"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(compile_naga_to_wgsl(&render_naga))),
+        });
+        
+        let physics_mod = device.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Physics"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(compile_naga_to_wgsl(&physics_naga))),
+        });
+        
+        let gen_mod = device.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Gen"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(compile_naga_to_wgsl(&gen_naga))),
+        });
+
+        // ... O RESTO DO SEU CÓDIGO (buffers, bind_group_layout, pipelines, etc) FICA EXATAMENTE IGUAL!
+
         let uniform_buffer = device.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Uniform Buffer"),
-            size: 128, // Suficiente para nossa struct Uniforms
+            size: 128,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        // --- BIND GROUP ---
         let bind_group_layout =
             device
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     entries: &[
-                        // Uniforms: Todos enxergam
                         wgpu::BindGroupLayoutEntry {
                             binding: 0,
                             visibility: wgpu::ShaderStages::VERTEX
@@ -101,7 +145,6 @@ impl<'a> State<'a> {
                             },
                             count: None,
                         },
-                        // World e Macro: Apenas Fragment (Raytracing) e Compute (Física)
                         wgpu::BindGroupLayoutEntry {
                             binding: 1,
                             visibility: wgpu::ShaderStages::FRAGMENT | wgpu::ShaderStages::COMPUTE,
@@ -159,7 +202,6 @@ impl<'a> State<'a> {
             label: None,
         });
 
-        // --- PIPELINES ---
         let pipeline_layout =
             device
                 .device
@@ -168,12 +210,6 @@ impl<'a> State<'a> {
                     ..Default::default()
                 });
 
-        let render_mod = device
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: None,
-                source: wgpu::ShaderSource::Wgsl(render_src.into()),
-            });
         let render_pipeline =
             device
                 .device
@@ -203,18 +239,17 @@ impl<'a> State<'a> {
             crate::engine::graphics::pipeline_builder::PipelineBuilder::create_compute_pipeline(
                 &device.device,
                 &pipeline_layout,
-                &physics_src,
+                &physics_mod,
                 "cp_main",
             );
         let gen_pipeline =
             crate::engine::graphics::pipeline_builder::PipelineBuilder::create_compute_pipeline(
                 &device.device,
                 &pipeline_layout,
-                &gen_src,
+                &gen_mod,
                 "main_gen",
             );
 
-        // GERAÇÃO INICIAL
         let world_gen = WorldGenerator::new(42);
         world_gen.dispatch_initial_gen(&device.device, &device.queue, &gen_pipeline, &bind_group);
 
@@ -236,18 +271,12 @@ impl<'a> State<'a> {
     pub fn update(&mut self) {
         self.time.update();
 
-        // 1. APLICAR MOUSE NA CÂMERA (O elo perdido!)
-        // Pegamos o delta acumulado, aplicamos e resetamos para o próximo frame
         let m_delta = self.inputs.mouse.delta;
         self.player.camera.mouse_move(m_delta.0, m_delta.1);
         self.inputs.mouse.delta = (0.0, 0.0);
 
-        // 2. PROCESSAR TECLADO E ARSENAL
-        // Passamos apenas a parte do teclado para as funções que já existem
         handle_input(&mut self.player, &self.inputs.keyboard);
         update_player(&mut self.player, &self.inputs.keyboard, self.time.delta);
-
-        // 3. COMBATE E FÍSICA
         update_combat(
             &mut self.player,
             &self.device.queue,
@@ -255,7 +284,6 @@ impl<'a> State<'a> {
             self.time.delta,
         );
 
-        // Estrutura de Uniforms exata para o Shader (com padding para 16 bytes de alinhamento)
         #[repr(C)]
         #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
         struct UniformData {
@@ -270,7 +298,6 @@ impl<'a> State<'a> {
             pad2: f32,
         }
 
-        // Transição do Dia/Noite suave baseada em física pura:
         let target_time = if self.player.is_day {
             0.0
         } else {
@@ -283,7 +310,7 @@ impl<'a> State<'a> {
                 self.device.size.width as f32,
                 self.device.size.height as f32,
             ],
-            time: self.time.time_of_day, // Usa o suave agora
+            time: self.time.time_of_day,
             action: self.player.active_weapon as u32,
             cam_pos: self.player.camera.pos,
             flash: if self.player.flashlight { 1 } else { 0 },
@@ -292,12 +319,11 @@ impl<'a> State<'a> {
             cam_up: self.player.visual_up,
             pad2: 0.0,
         };
-        
+
         self.device
             .queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[data]));
 
-        // Envia os Mísseis da CPU para a Placa de Vídeo desenhar
         let mut proj_data = [crate::engine::voxel::storage::Projectile {
             pos: [0.0; 3],
             is_active: 0,
@@ -317,9 +343,7 @@ impl<'a> State<'a> {
             bytemuck::cast_slice(&proj_data),
         );
 
-        // Limpa os estados de 'Pressionado' que causam flutuações e pulos infinitos
         self.inputs.keyboard.tick();
-
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {

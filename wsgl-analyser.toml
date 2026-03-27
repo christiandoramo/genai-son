@@ -1,0 +1,2 @@
+[dependencies]
+shaders = { path = "src/shaders" }

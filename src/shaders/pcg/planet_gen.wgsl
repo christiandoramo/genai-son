@@ -1,6 +1,6 @@
-@group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var<storage, read_write> world: WorldBuffer;
-@group(0) @binding(2) var<storage, read_write> macro_world: WorldBuffer;
+#import globals::{world, macro_world}
+#import constants::{WORLD_SIZE, MAT_AIR, MAT_MAGMA, MAT_IRON, MAT_SNOW, MAT_SAND, MAT_GRASS, MAT_ROCK, MAT_WATER}
+#import math::{get_index, get_macro_index, noise}
 
 @compute @workgroup_size(4, 4, 4)
 fn main_gen(@builtin(global_invocation_id) id: vec3<u32>) {

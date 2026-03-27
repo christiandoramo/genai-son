@@ -1,3 +1,8 @@
+#define_import_path math
+#import constants::{WORLD_SIZE, MACRO_SIZE, MAT_AIR, MAT_SAND, MAT_WATER, MAT_GAS, MAT_SNOW, MAT_DIRT, MAT_GRASS, MAT_ROCK, MAT_MAGMA, MAT_IRON}
+#import globals::{world, macro_world}
+#import biomes::{get_biome_color}
+
 fn hash(p: vec3<f32>) -> f32 {
     var p3 = fract(p * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
@@ -53,4 +58,24 @@ fn get_orthogonal(g: vec3<i32>, index: u32) -> vec3<i32> {
     else if (g.y != 0) { u = vec3<i32>(1,0,0); v = vec3<i32>(0,0,1); }
     else { u = vec3<i32>(1,0,0); v = vec3<i32>(0,1,0); }
     if (index == 0u) { return u; } if (index == 1u) { return -u; } if (index == 2u) { return v; } return -v;
+}
+
+fn move_voxel(from_idx: u32, to_idx: u32, tx: u32, ty: u32, tz: u32, mat: u32) {
+    world.data[from_idx] = MAT_AIR;
+    world.data[to_idx] = mat;
+    macro_world.data[get_macro_index(tx, ty, tz)] = 1u;
+}
+
+fn is_valid(x: u32, y: u32, z: u32) -> bool {
+    return x > 0u && x < 255u && y > 0u && y < 255u && z > 0u && z < 255u;
+}
+
+fn is_free(v: u32) -> bool {
+    return v == MAT_AIR || v == MAT_GAS;
+}
+
+fn get_normal(side: u32) -> vec3<f32> {
+    if (side == 0u) { return vec3<f32>(1.0, 0.0, 0.0); }
+    if (side == 1u) { return vec3<f32>(0.0, 1.0, 0.0); }
+    return vec3<f32>(0.0, 0.0, 1.0);
 }

@@ -1,3 +1,5 @@
+#define_import_path constants
+
 // Constantes de Mundo
 const WORLD_SIZE: u32 = 256u;
 const MACRO_SIZE: u32 = 32u;

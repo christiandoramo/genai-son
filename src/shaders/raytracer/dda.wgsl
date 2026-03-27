@@ -1,3 +1,8 @@
+#define_import_path dda
+#import globals::{world, macro_world}
+#import constants::{MAT_AIR, MAT_WATER}
+#import math::{get_macro_index, get_index, is_valid_i}
+
 struct RayHit {
     hit: bool,
     pos: vec3<f32>,

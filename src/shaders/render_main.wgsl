@@ -1,7 +1,24 @@
-@group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var<storage, read_write> world: WorldBuffer;
-@group(0) @binding(2) var<storage, read_write> macro_world: WorldBuffer;
-@group(0) @binding(3) var<storage, read_write> projectiles: array<Projectile>;
+#include "include/struct.wgsl"
+#include "include/constant.wgsl"
+#include "include/globals.wgsl"
+#include "include/math.wgsl"
+#include "pcg/biomes.wgsl"
+#include "raytracer/dda.wgsl"
+#include "raytracer/lighting.wgsl"
+#include "post_process/psx.wgsl"
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
+    var out: VertexOutput;
+    let x = f32((in_vertex_index << 1u) & 2u); let y = f32(in_vertex_index & 2u);
+    out.clip_position = vec4<f32>(x * 2.0 - 1.0, 1.0 - y * 2.0, 0.0, 1.0); out.uv = vec2<f32>(x, y);
+    return out;
+}
 
 @fragment
 fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
@@ -67,10 +84,4 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     if (center_dist < 4.0 && center_dist > 1.0) { final_color = mix(final_color, vec3<f32>(1.0, 1.0, 1.0), 0.8); }
     
     return vec4<f32>(final_color, 1.0);
-}
-// Para suportar o RayHit do dda.wgsl e o biome_color
-fn get_normal(side: u32) -> vec3<f32> {
-    if (side == 0u) { return vec3<f32>(1.0, 0.0, 0.0); }
-    if (side == 1u) { return vec3<f32>(0.0, 1.0, 0.0); }
-    return vec3<f32>(0.0, 0.0, 1.0);
 }
